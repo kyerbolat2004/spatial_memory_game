@@ -614,7 +614,9 @@ class _GameScreenState extends State<GameScreen> {
       _score += widget.config.pointsPerMove;
       if (!actualInside) {
         _validator.rollbackToLastValid();
-        _moveMessage = "Правильно! Возврат на легальную позицию.";
+        setState(() {
+          _moveMessage = "Правильно! Возврат на легальную позицию.";
+        });
         TTSEngine.speak("Объект вернулся обратно");
       }
       if (_currentRound >= _validator.totalRounds) {
@@ -761,6 +763,8 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       body: SafeArea(
         child: Padding(
@@ -783,14 +787,21 @@ class _ResultsScreenState extends State<ResultsScreen> {
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
                     children: [
-                      Text('Присвоенный ранг:', style: TextStyle(color: Colors.grey.shade600)),
-                      Text(_getRank(), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black)),
+                      Text('Присвоенный ранг:', style: TextStyle(color: Theme.of(context).hintColor)),
+                      Text(
+                        _getRank(), 
+                        style: TextStyle(
+                          fontSize: 18, 
+                          fontWeight: FontWeight.bold, 
+                          color: isDarkMode ? Colors.white : Colors.black54
+                        )
+                      ),
                       const SizedBox(height: 12),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceAround,
                         children: [
-                          _statTile('Раунды', '${widget.roundsPassed}/${widget.validator.totalRounds}'),
-                          _statTile('Награда', '+$widget.score 🪙'),
+                          _statTile(context, 'Раунды', '${widget.roundsPassed}/${widget.validator.totalRounds}'),
+                          _statTile(context, 'Награда', '+${widget.score} 🪙'),
                         ],
                       ),
                     ],
@@ -838,8 +849,21 @@ class _ResultsScreenState extends State<ResultsScreen> {
     );
   }
 
-  Widget _statTile(String label, String value) {
-    return Column(children: [Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)), Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black))]);
+  Widget _statTile(BuildContext context, String label, String value) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    return Column(
+      children: [
+        Text(label, style: TextStyle(fontSize: 12, color: Theme.of(context).hintColor)), 
+        Text(
+          value, 
+          style: TextStyle(
+            fontSize: 18, 
+            fontWeight: FontWeight.bold, 
+            color: isDarkMode ? Colors.teal.shade300 : Colors.black
+          )
+        )
+      ],
+    );
   }
 }
 
