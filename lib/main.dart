@@ -70,6 +70,9 @@ class TTSEngine {
     await _flutterTts.setSpeechRate(0.4); 
     await _flutterTts.setPitch(1.0);      
     await _flutterTts.setVolume(volume);
+    
+    // За обход Silent Mode отвечает audio_session в main().
+    // Удален setIosAudioCategory, который вызывал ошибки типов данных.
     await _flutterTts.setSharedInstance(true);
   }
 
@@ -821,7 +824,7 @@ class _UpgradesScreenState extends State<UpgradesScreen> {
             const Divider(height: 30),
             const Text('Модификаторы раунда:', style: TextStyle(fontWeight: FontWeight.bold)),
             SwitchListTile(
-              title: const Text('Слепая сетка'),
+              title: const Text('Слебая сетка'),
               subtitle: const Text('Отсутствие рамок с самого старта раунда'),
               value: _blind,
               onChanged: (val) => setState(() => _blind = val),
