@@ -1218,7 +1218,6 @@ class _GameScreenState extends State<GameScreen> {
 
         return Container(
           decoration: BoxDecoration(
-            // ИСПРАВЛЕНО: Заменен устаревший .withOpacity на новый .withValues согласно правилам Flutter SDK
             color: Colors.white.withValues(alpha: themeNotifier.value == ThemeMode.dark ? 0.08 : 1.0),
             border: Border.all(color: Colors.grey.shade400, width: 1),
             borderRadius: BorderRadius.circular(6),
@@ -1414,7 +1413,6 @@ class _ResultsScreenState extends State<ResultsScreen> {
                     itemCount: widget.config.gridSize * widget.config.gridSize,
                     gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: widget.config.gridSize, crossAxisSpacing: 4, mainAxisSpacing: 4),
                     itemBuilder: (context, index) {
-                      // ИСПРАВЛЕНО: Заменен устаревший .withOpacity на новый .withValues для полной чистоты сборки
                       Color cellColor = Colors.indigo.withValues(alpha: 0.05);
                       Widget cellChild = const Center(child: Icon(Icons.help_center_outlined, size: 18, color: Colors.indigo));
 
