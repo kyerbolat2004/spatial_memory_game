@@ -17,13 +17,16 @@ void main() async {
 
   try {
     final session = await AudioSession.instance;
-    await session.configure(const AudioSessionConfiguration(
-      avAudioSessionCategory: AVAudioSessionCategory.playback,
-      avAudioSessionCategoryOptions: AVAudioSessionCategoryOptions.duckOthers,
-      avAudioSessionMode: AVAudioSessionMode.defaultMode,
-      avAudioSessionRouteSharingPolicy: AVAudioSessionRouteSharingPolicy.defaultPolicy,
-      avAudioSessionSetActiveOptions: AVAudioSessionSetActiveOptions.none,
-    ));
+    await session.configure(
+      const AudioSessionConfiguration(
+        avAudioSessionCategory: AVAudioSessionCategory.playback,
+        avAudioSessionCategoryOptions: AVAudioSessionCategoryOptions.duckOthers,
+        avAudioSessionMode: AVAudioSessionMode.defaultMode,
+        avAudioSessionRouteSharingPolicy:
+            AVAudioSessionRouteSharingPolicy.defaultPolicy,
+        avAudioSessionSetActiveOptions: AVAudioSessionSetActiveOptions.none,
+      ),
+    );
     await session.setActive(true);
   } catch (e) {
     debugPrint("Ошибка конфигурации AudioSession: $e");
@@ -149,22 +152,22 @@ class GameSession {
   });
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'date': date,
-        'score': score,
-        'themeName': themeName,
-        'difficultyLevel': difficultyLevel,
-        'isPerfectSession': isPerfectSession,
-      };
+    'id': id,
+    'date': date,
+    'score': score,
+    'themeName': themeName,
+    'difficultyLevel': difficultyLevel,
+    'isPerfectSession': isPerfectSession,
+  };
 
   factory GameSession.fromJson(Map<String, dynamic> json) => GameSession(
-        id: json['id'] ?? '',
-        date: json['date'] ?? '',
-        score: json['score'] ?? 0,
-        themeName: json['themeName'] ?? '',
-        difficultyLevel: json['difficultyLevel'] ?? 1,
-        isPerfectSession: json['isPerfectSession'] ?? false,
-      );
+    id: json['id'] ?? '',
+    date: json['date'] ?? '',
+    score: json['score'] ?? 0,
+    themeName: json['themeName'] ?? '',
+    difficultyLevel: json['difficultyLevel'] ?? 1,
+    isPerfectSession: json['isPerfectSession'] ?? false,
+  );
 }
 
 // =========================================================================
@@ -176,7 +179,18 @@ class StorageService {
   static int currentStreak = 1;
 
   // Расширено под 10 уровней
-  static Map<int, int> difficultyWins = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0};
+  static Map<int, int> difficultyWins = {
+    1: 0,
+    2: 0,
+    3: 0,
+    4: 0,
+    5: 0,
+    6: 0,
+    7: 0,
+    8: 0,
+    9: 0,
+    10: 0,
+  };
   static List<int> unlockedDifficulties = [1];
   static List<String> unlockedThemes = ['microworld'];
 
@@ -184,9 +198,9 @@ class StorageService {
   static int itemXrayCount = 0;
 
   static bool controlsOnLeft = true;
-  static bool devModeActive = false; 
-  static bool isBlindModeGlobal = true; 
-  static bool showSpeechText = false; 
+  static bool devModeActive = false;
+  static bool isBlindModeGlobal = true;
+  static bool showSpeechText = false;
 
   static int activeDifficulty = 1;
 
@@ -196,26 +210,32 @@ class StorageService {
     itemShieldCount = prefs.getInt('itemShieldCount') ?? 0;
     itemXrayCount = prefs.getInt('itemXrayCount') ?? 0;
     controlsOnLeft = prefs.getBool('controlsOnLeft') ?? true;
-    isBlindModeGlobal = prefs.getBool('isBlindModeGlobal') ?? true; 
+    isBlindModeGlobal = prefs.getBool('isBlindModeGlobal') ?? true;
     devModeActive = prefs.getBool('devModeActive') ?? false;
-    showSpeechText = prefs.getBool('showSpeechText') ?? false; 
+    showSpeechText = prefs.getBool('showSpeechText') ?? false;
 
-    unlockedDifficulties = (prefs.getStringList('unlockedDifficulties') ?? ['1'])
-        .map((e) => int.parse(e))
-        .toList();
+    unlockedDifficulties =
+        (prefs.getStringList('unlockedDifficulties') ?? ['1'])
+            .map((e) => int.parse(e))
+            .toList();
     activeDifficulty = prefs.getInt('activeDifficulty') ?? 1;
 
     String? winsJson = prefs.getString('difficultyWins');
     if (winsJson != null) {
       Map<String, dynamic> decoded = jsonDecode(winsJson);
-      difficultyWins = decoded.map((key, value) => MapEntry(int.parse(key), value as int));
+      difficultyWins = decoded.map(
+        (key, value) => MapEntry(int.parse(key), value as int),
+      );
     }
 
     unlockedThemes = prefs.getStringList('unlockedThemes') ?? ['microworld'];
-    activeThemeIdNotifier.value = prefs.getString('activeThemeId') ?? 'microworld';
+    activeThemeIdNotifier.value =
+        prefs.getString('activeThemeId') ?? 'microworld';
 
     List<String> historyRaw = prefs.getStringList('gameHistoryJson') ?? [];
-    gameHistory = historyRaw.map((e) => GameSession.fromJson(jsonDecode(e))).toList();
+    gameHistory = historyRaw
+        .map((e) => GameSession.fromJson(jsonDecode(e)))
+        .toList();
 
     await _checkDailyStreak(prefs);
 
@@ -232,7 +252,11 @@ class StorageService {
 
     if (lastLoginStr != null) {
       DateTime lastLogin = DateTime.parse(lastLoginStr);
-      DateTime lastLoginZero = DateTime(lastLogin.year, lastLogin.month, lastLogin.day);
+      DateTime lastLoginZero = DateTime(
+        lastLogin.year,
+        lastLogin.month,
+        lastLogin.day,
+      );
 
       int diffInDays = todayZero.difference(lastLoginZero).inDays;
 
@@ -257,16 +281,24 @@ class StorageService {
     await prefs.setBool('controlsOnLeft', controlsOnLeft);
     await prefs.setBool('isBlindModeGlobal', isBlindModeGlobal);
     await prefs.setBool('devModeActive', devModeActive);
-    await prefs.setBool('showSpeechText', showSpeechText); 
+    await prefs.setBool('showSpeechText', showSpeechText);
 
-    await prefs.setStringList('unlockedDifficulties', unlockedDifficulties.map((e) => e.toString()).toList());
+    await prefs.setStringList(
+      'unlockedDifficulties',
+      unlockedDifficulties.map((e) => e.toString()).toList(),
+    );
     await prefs.setInt('activeDifficulty', activeDifficulty);
 
-    await prefs.setString('difficultyWins', jsonEncode(difficultyWins.map((k, v) => MapEntry(k.toString(), v))));
+    await prefs.setString(
+      'difficultyWins',
+      jsonEncode(difficultyWins.map((k, v) => MapEntry(k.toString(), v))),
+    );
     await prefs.setStringList('unlockedThemes', unlockedThemes);
     await prefs.setString('activeThemeId', activeThemeIdNotifier.value);
 
-    List<String> historyRaw = gameHistory.map((e) => jsonEncode(e.toJson())).toList();
+    List<String> historyRaw = gameHistory
+        .map((e) => jsonEncode(e.toJson()))
+        .toList();
     await prefs.setStringList('gameHistoryJson', historyRaw);
 
     await prefs.setBool('isDarkMode', themeNotifier.value == ThemeMode.dark);
@@ -274,7 +306,8 @@ class StorageService {
 
   static void addSessionToHistory(int score, bool isPerfect) {
     if (isPerfect) {
-      difficultyWins[activeDifficulty] = (difficultyWins[activeDifficulty] ?? 0) + 1;
+      difficultyWins[activeDifficulty] =
+          (difficultyWins[activeDifficulty] ?? 0) + 1;
     }
 
     userTotalBank += score;
@@ -337,28 +370,113 @@ class DifficultyConfig {
 }
 
 final List<DifficultyConfig> difficulties = [
-  const DifficultyConfig(level: 1, gridSize: 3, objectsCount: 1, obstaclesCount: 0, maxStep: 1, unlockCost: 0, winsRequiredFromPrevious: 0),
-  const DifficultyConfig(level: 2, gridSize: 4, objectsCount: 2, obstaclesCount: 0, maxStep: 1, unlockCost: 1000, winsRequiredFromPrevious: 4),
-  const DifficultyConfig(level: 3, gridSize: 4, objectsCount: 1, obstaclesCount: 1, maxStep: 1, unlockCost: 2500, winsRequiredFromPrevious: 4),
-  const DifficultyConfig(level: 4, gridSize: 5, objectsCount: 2, obstaclesCount: 1, maxStep: 2, unlockCost: 5000, winsRequiredFromPrevious: 5),
-  const DifficultyConfig(level: 5, gridSize: 6, objectsCount: 2, obstaclesCount: 2, maxStep: 2, unlockCost: 9000, winsRequiredFromPrevious: 5),
-  const DifficultyConfig(level: 6, gridSize: 7, objectsCount: 1, obstaclesCount: 3, maxStep: 2, unlockCost: 14000, winsRequiredFromPrevious: 6),
-  const DifficultyConfig(level: 7, gridSize: 8, objectsCount: 2, obstaclesCount: 3, maxStep: 3, unlockCost: 20000, winsRequiredFromPrevious: 6),
-  const DifficultyConfig(level: 8, gridSize: 9, objectsCount: 1, obstaclesCount: 4, maxStep: 3, unlockCost: 28000, winsRequiredFromPrevious: 7),
-  const DifficultyConfig(level: 9, gridSize: 9, objectsCount: 2, obstaclesCount: 5, maxStep: 4, unlockCost: 38000, winsRequiredFromPrevious: 7),
-  const DifficultyConfig(level: 10, gridSize: 10, objectsCount: 2, obstaclesCount: 6, maxStep: 4, unlockCost: 50000, winsRequiredFromPrevious: 8),
+  const DifficultyConfig(
+    level: 1,
+    gridSize: 3,
+    objectsCount: 1,
+    obstaclesCount: 0,
+    maxStep: 1,
+    unlockCost: 0,
+    winsRequiredFromPrevious: 0,
+  ),
+  const DifficultyConfig(
+    level: 2,
+    gridSize: 4,
+    objectsCount: 2,
+    obstaclesCount: 0,
+    maxStep: 1,
+    unlockCost: 1000,
+    winsRequiredFromPrevious: 4,
+  ),
+  const DifficultyConfig(
+    level: 3,
+    gridSize: 4,
+    objectsCount: 1,
+    obstaclesCount: 1,
+    maxStep: 1,
+    unlockCost: 2500,
+    winsRequiredFromPrevious: 4,
+  ),
+  const DifficultyConfig(
+    level: 4,
+    gridSize: 5,
+    objectsCount: 2,
+    obstaclesCount: 1,
+    maxStep: 2,
+    unlockCost: 5000,
+    winsRequiredFromPrevious: 5,
+  ),
+  const DifficultyConfig(
+    level: 5,
+    gridSize: 6,
+    objectsCount: 2,
+    obstaclesCount: 2,
+    maxStep: 2,
+    unlockCost: 9000,
+    winsRequiredFromPrevious: 5,
+  ),
+  const DifficultyConfig(
+    level: 6,
+    gridSize: 7,
+    objectsCount: 1,
+    obstaclesCount: 3,
+    maxStep: 2,
+    unlockCost: 14000,
+    winsRequiredFromPrevious: 6,
+  ),
+  const DifficultyConfig(
+    level: 7,
+    gridSize: 8,
+    objectsCount: 2,
+    obstaclesCount: 3,
+    maxStep: 3,
+    unlockCost: 20000,
+    winsRequiredFromPrevious: 6,
+  ),
+  const DifficultyConfig(
+    level: 8,
+    gridSize: 9,
+    objectsCount: 1,
+    obstaclesCount: 4,
+    maxStep: 3,
+    unlockCost: 28000,
+    winsRequiredFromPrevious: 7,
+  ),
+  const DifficultyConfig(
+    level: 9,
+    gridSize: 9,
+    objectsCount: 2,
+    obstaclesCount: 5,
+    maxStep: 4,
+    unlockCost: 38000,
+    winsRequiredFromPrevious: 7,
+  ),
+  const DifficultyConfig(
+    level: 10,
+    gridSize: 10,
+    objectsCount: 2,
+    obstaclesCount: 6,
+    maxStep: 4,
+    unlockCost: 50000,
+    winsRequiredFromPrevious: 8,
+  ),
 ];
 
 // =========================================================================
 // КЛАССЫ СОСТОЯНИЙ И ИГРОВОЙ ДВИЖОК
 // =========================================================================
 class ObjectState {
-  final int id; 
-  int x; 
-  int y; 
+  final int id;
+  int x;
+  int y;
   final String emoji;
 
-  ObjectState({required this.id, required this.x, required this.y, required this.emoji});
+  ObjectState({
+    required this.id,
+    required this.x,
+    required this.y,
+    required this.emoji,
+  });
 
   ObjectState clone() => ObjectState(id: id, x: x, y: y, emoji: emoji);
 }
@@ -414,7 +532,7 @@ class TTSEngine {
     "Единорог": ["пойти", "ускакать"],
     "Робот": ["двинуться", "переместиться"],
     "Жук": ["проползти", "пойти"],
-    "Звезда": ["полететь", "улететь"]
+    "Звезда": ["полететь", "улететь"],
   };
 
   // Модальные глаголы вступления: [текст, ключ-файла]. Должны совпадать
@@ -428,19 +546,36 @@ class TTSEngine {
 
   // Транслитерация для имён аудиофайлов (см. tool/generate_voice_lines.dart).
   static const Map<String, String> _nameKeys = {
-    "Муха": "mukha", "Жук": "zhuk", "Дрон": "dron", "Робот": "robot",
-    "Рыбка": "rybka", "Осьминог": "osminog", "Звезда": "zvezda",
-    "Ракета": "raketa", "Кошка": "koshka", "Сокол": "sokol",
-    "Дракон": "drakon", "Единорог": "edinorog",
+    "Муха": "mukha",
+    "Жук": "zhuk",
+    "Дрон": "dron",
+    "Робот": "robot",
+    "Рыбка": "rybka",
+    "Осьминог": "osminog",
+    "Звезда": "zvezda",
+    "Ракета": "raketa",
+    "Кошка": "koshka",
+    "Сокол": "sokol",
+    "Дракон": "drakon",
+    "Единорог": "edinorog",
   };
   static const Map<String, String> _actionKeys = {
-    "полететь": "poletet", "улететь": "uletet", "проползти": "propolzti",
-    "пойти": "poyti", "двинуться": "dvinutsya", "переместиться": "peremestitsya",
-    "поплыть": "poplyt", "уплыть": "uplyt", "пробежать": "probezhat",
+    "полететь": "poletet",
+    "улететь": "uletet",
+    "проползти": "propolzti",
+    "пойти": "poyti",
+    "двинуться": "dvinutsya",
+    "переместиться": "peremestitsya",
+    "поплыть": "poplyt",
+    "уплыть": "uplyt",
+    "пробежать": "probezhat",
     "ускакать": "uskakat",
   };
   static const Map<String, String> _dirKeys = {
-    "влево": "vlevo", "вправо": "vpravo", "вверх": "vverh", "вниз": "vniz",
+    "влево": "vlevo",
+    "вправо": "vpravo",
+    "вверх": "vverh",
+    "вниз": "vniz",
   };
 
   static Future<void> init() async {
@@ -451,13 +586,11 @@ class TTSEngine {
     await _flutterTts.setSharedInstance(true);
 
     try {
-      await _flutterTts.setIosAudioCategory(
-        IosTextToSpeechAudioCategory.playback,
-        [
-          IosTextToSpeechAudioCategoryOptions.defaultToSpeaker,
-          IosTextToSpeechAudioCategoryOptions.duckOthers,
-        ],
-      );
+      await _flutterTts
+          .setIosAudioCategory(IosTextToSpeechAudioCategory.playback, [
+            IosTextToSpeechAudioCategoryOptions.defaultToSpeaker,
+            IosTextToSpeechAudioCategoryOptions.duckOthers,
+          ]);
     } catch (e) {
       debugPrint("Ошибка настройки TTS iOS Audio: $e");
     }
@@ -491,7 +624,8 @@ class TTSEngine {
     List<String> parts = rawName.split(' ');
     String cleanName = parts.length > 1 ? parts[1].trim() : rawName.trim();
 
-    List<String> availableActions = _actions[cleanName] ?? ["переместиться", "двинуться"];
+    List<String> availableActions =
+        _actions[cleanName] ?? ["переместиться", "двинуться"];
     String action = availableActions[rand.nextInt(availableActions.length)];
     List<String> modal = _modals[rand.nextInt(_modals.length)];
 
@@ -514,7 +648,8 @@ class TTSEngine {
       motionTexts.add("${_stepWord(step)} $dir");
     }
 
-    String text = "$cleanName ${modal[0]} $action на ${motionTexts.join(' и на ')}";
+    String text =
+        "$cleanName ${modal[0]} $action на ${motionTexts.join(' и на ')}";
     return MoveSpeech(text, clips);
   }
 }
@@ -534,7 +669,8 @@ class VoiceService {
     "memorize": "Запомни расположение объектов на поле.",
     "game_over": "Ой! Вы ошиблись и объект попал в тупик.",
     "perfect_finish": "Отличная работа! Идеальная сессия. Запуск супер-игры.",
-    "supergame_trap": "Ловушка! Вы наступили на препятствие. Супер-игра окончена.",
+    "supergame_trap":
+        "Ловушка! Вы наступили на препятствие. Супер-игра окончена.",
     "found_first": "Правильно! Нашли первый объект.",
     "found_second": "Отлично! Нашли второй объект. Монеты удвоены!",
     "miss_empty": "Промах! Это была пустая ячейка.",
@@ -667,7 +803,9 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                   ? "Режим Тестировщика активирован! Открыт весь контент и включен рентген."
                   : "Режим Тестировщика отключен.",
             ),
-            backgroundColor: StorageService.devModeActive ? Colors.green : Colors.red,
+            backgroundColor: StorageService.devModeActive
+                ? Colors.green
+                : Colors.red,
           ),
         );
       }
@@ -680,12 +818,17 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
       builder: (context) {
         final activeTheme = getActiveTheme();
         return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
           title: Row(
             children: [
               Icon(Icons.menu_book, color: activeTheme.primaryColor),
               const SizedBox(width: 10),
-              const Text('Инструкция к игре', style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text(
+                'Инструкция к игре',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
             ],
           ),
           content: SingleChildScrollView(
@@ -737,7 +880,10 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                 const Divider(height: 20),
                 Text(
                   '🪐 Элементы Мира Темы (${activeTheme.name}):',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text('• Фишка 1: ${activeTheme.obj1}'),
@@ -772,7 +918,10 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 24.0,
+              vertical: 20.0,
+            ),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 420),
               child: Column(
@@ -800,7 +949,8 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                                 fontWeight: FontWeight.w900,
                                 letterSpacing: 0.5,
                                 height: 1.0,
-                                color: Colors.white, // перекрывается градиентом ShaderMask
+                                color: Colors
+                                    .white, // перекрывается градиентом ShaderMask
                               ),
                             ),
                           ),
@@ -812,7 +962,9 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                               fontSize: 10.5,
                               fontWeight: FontWeight.w700,
                               letterSpacing: 2.0,
-                              color: Theme.of(context).brightness == Brightness.dark
+                              color:
+                                  Theme.of(context).brightness ==
+                                      Brightness.dark
                                   ? Colors.white54
                                   : Colors.black45,
                             ),
@@ -824,7 +976,10 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                   const SizedBox(height: 10),
                   Center(
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.orange.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(20),
@@ -832,7 +987,11 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.local_fire_department, color: Colors.orange, size: 20),
+                          const Icon(
+                            Icons.local_fire_department,
+                            color: Colors.orange,
+                            size: 20,
+                          ),
                           const SizedBox(width: 6),
                           Text(
                             'Страйк: ${StorageService.currentStreak} дн.',
@@ -849,14 +1008,21 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                     const SizedBox(height: 10),
                     Center(
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.red.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: const Text(
                           "⚙️ ТЕСТИРОВЩИК АКТИВЕН",
-                          style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 11),
+                          style: TextStyle(
+                            color: Colors.red,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 11,
+                          ),
                         ),
                       ),
                     ),
@@ -869,7 +1035,8 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                     color: const Color(0xFF14B8A6),
                     onTap: () {
                       final config = difficulties.firstWhere(
-                        (element) => element.level == StorageService.activeDifficulty,
+                        (element) =>
+                            element.level == StorageService.activeDifficulty,
                         orElse: () => difficulties[0],
                       );
                       Navigator.push(
@@ -888,7 +1055,9 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                     onTap: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => const UpgradesScreen()),
+                        MaterialPageRoute(
+                          builder: (context) => const UpgradesScreen(),
+                        ),
                       ).then((_) => setState(() {}));
                     },
                   ),
@@ -900,7 +1069,9 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                     onTap: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => const ShopScreen()),
+                        MaterialPageRoute(
+                          builder: (context) => const ShopScreen(),
+                        ),
                       ).then((_) => setState(() {}));
                     },
                   ),
@@ -919,7 +1090,9 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                     onTap: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => const GameHistoryScreen()),
+                        MaterialPageRoute(
+                          builder: (context) => const GameHistoryScreen(),
+                        ),
                       );
                     },
                   ),
@@ -931,7 +1104,9 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                     onTap: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => const SettingsScreen()),
+                        MaterialPageRoute(
+                          builder: (context) => const SettingsScreen(),
+                        ),
                       ).then((_) => setState(() {}));
                     },
                   ),
@@ -946,13 +1121,16 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                           color: Colors.black.withValues(alpha: 0.05),
                           blurRadius: 10,
                           offset: const Offset(0, 4),
-                        )
+                        ),
                       ],
                     ),
                     child: Text(
                       'Баланс кошелька: ${StorageService.userTotalBank} 🪙',
                       textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ],
@@ -978,13 +1156,19 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
           backgroundColor: color,
           elevation: 2,
           padding: const EdgeInsets.symmetric(vertical: 14),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
         ),
         onPressed: onTap,
         icon: Icon(icon, color: Colors.white),
         label: Text(
           label,
-          style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
     );
@@ -1001,16 +1185,17 @@ class GameHistoryScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final activeTheme = getActiveTheme();
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Журнал игр'),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text('Журнал игр'), centerTitle: true),
       body: StorageService.gameHistory.isEmpty
           ? Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.history_toggle_off_rounded, size: 64, color: Colors.grey.withValues(alpha: 0.5)),
+                  Icon(
+                    Icons.history_toggle_off_rounded,
+                    size: 64,
+                    color: Colors.grey.withValues(alpha: 0.5),
+                  ),
                   const SizedBox(height: 12),
                   const Text(
                     'Журнал пуст.\nСыграйте хотя бы один матч!',
@@ -1027,15 +1212,25 @@ class GameHistoryScreen extends StatelessWidget {
                 final session = StorageService.gameHistory[index];
                 return Card(
                   margin: const EdgeInsets.only(bottom: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                   elevation: 2,
                   child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     leading: CircleAvatar(
-                      backgroundColor: activeTheme.primaryColor.withValues(alpha: 0.15),
+                      backgroundColor: activeTheme.primaryColor.withValues(
+                        alpha: 0.15,
+                      ),
                       child: Text(
                         "${session.difficultyLevel}⭐",
-                        style: TextStyle(color: activeTheme.primaryColor, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          color: activeTheme.primaryColor,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                     title: Row(
@@ -1047,14 +1242,21 @@ class GameHistoryScreen extends StatelessWidget {
                         const SizedBox(width: 8),
                         if (session.isPerfectSession)
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.teal,
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: const Text(
                               'ИДЕАЛЬНО',
-                              style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
                       ],
@@ -1067,7 +1269,10 @@ class GameHistoryScreen extends StatelessWidget {
                         const SizedBox(height: 2),
                         Text(
                           session.date,
-                          style: const TextStyle(fontSize: 11, color: Colors.grey),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey,
+                          ),
                         ),
                       ],
                     ),
@@ -1076,7 +1281,11 @@ class GameHistoryScreen extends StatelessWidget {
                       children: [
                         Text(
                           '+${session.score}',
-                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green),
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.green,
+                          ),
                         ),
                         const SizedBox(width: 4),
                         const Text('🪙', style: TextStyle(fontSize: 16)),
@@ -1105,12 +1314,16 @@ class _UpgradesScreenState extends State<UpgradesScreen> {
     int previousWins = StorageService.difficultyWins[config.level - 1] ?? 0;
 
     if (previousWins < config.winsRequiredFromPrevious) {
-      _showErrorDialog("Вам нужно набрать как минимум ${config.winsRequiredFromPrevious} идеальных побед на Уровне ${config.level - 1}!\nВаш текущий результат: $previousWins побед.");
+      _showErrorDialog(
+        "Вам нужно набрать как минимум ${config.winsRequiredFromPrevious} идеальных побед на Уровне ${config.level - 1}!\nВаш текущий результат: $previousWins побед.",
+      );
       return;
     }
 
     if (StorageService.userTotalBank < config.unlockCost) {
-      _showErrorDialog("Недостаточно монет! Стоимость разблокировки: ${config.unlockCost} 🪙.\nВаш баланс: ${StorageService.userTotalBank} 🪙.");
+      _showErrorDialog(
+        "Недостаточно монет! Стоимость разблокировки: ${config.unlockCost} 🪙.\nВаш баланс: ${StorageService.userTotalBank} 🪙.",
+      );
       return;
     }
 
@@ -1122,7 +1335,12 @@ class _UpgradesScreenState extends State<UpgradesScreen> {
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Уровень сложности ${config.level} успешно разблокирован!'), backgroundColor: Colors.green),
+      SnackBar(
+        content: Text(
+          'Уровень сложности ${config.level} успешно разблокирован!',
+        ),
+        backgroundColor: Colors.green,
+      ),
     );
   }
 
@@ -1133,7 +1351,10 @@ class _UpgradesScreenState extends State<UpgradesScreen> {
         title: const Text('Внимание!'),
         content: Text(msg),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Ок')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Ок'),
+          ),
         ],
       ),
     );
@@ -1159,11 +1380,17 @@ class _UpgradesScreenState extends State<UpgradesScreen> {
                   children: [
                     Text(
                       'Ваш баланс: ${StorageService.userTotalBank} 🪙',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
                     ),
                     Text(
                       'Сложность: ${StorageService.activeDifficulty}★',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
                     ),
                   ],
                 ),
@@ -1196,16 +1423,28 @@ class _UpgradesScreenState extends State<UpgradesScreen> {
               itemCount: difficulties.length,
               itemBuilder: (context, index) {
                 final config = difficulties[index];
-                final isUnlocked = StorageService.unlockedDifficulties.contains(config.level) || StorageService.devModeActive;
-                final isActive = StorageService.activeDifficulty == config.level;
+                final isUnlocked =
+                    StorageService.unlockedDifficulties.contains(
+                      config.level,
+                    ) ||
+                    StorageService.devModeActive;
+                final isActive =
+                    StorageService.activeDifficulty == config.level;
 
                 final wins = StorageService.difficultyWins[config.level] ?? 0;
-                final prevWins = StorageService.difficultyWins[config.level - 1] ?? 0;
+                final prevWins =
+                    StorageService.difficultyWins[config.level - 1] ?? 0;
 
                 Widget trailingWidget;
                 if (isActive) {
                   trailingWidget = const Chip(
-                    label: Text('Активен', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    label: Text(
+                      'Активен',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     backgroundColor: Colors.green,
                   );
                 } else if (isUnlocked) {
@@ -1220,10 +1459,19 @@ class _UpgradesScreenState extends State<UpgradesScreen> {
                   );
                 } else {
                   trailingWidget = ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                    ),
                     onPressed: () => _tryUnlock(config),
-                    icon: const Icon(Icons.lock_open, size: 16, color: Colors.white),
-                    label: Text('${config.unlockCost} 🪙', style: const TextStyle(color: Colors.white)),
+                    icon: const Icon(
+                      Icons.lock_open,
+                      size: 16,
+                      color: Colors.white,
+                    ),
+                    label: Text(
+                      '${config.unlockCost} 🪙',
+                      style: const TextStyle(color: Colors.white),
+                    ),
                   );
                 }
 
@@ -1232,7 +1480,9 @@ class _UpgradesScreenState extends State<UpgradesScreen> {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                     side: BorderSide(
-                      color: isActive ? activeTheme.primaryColor : Colors.transparent,
+                      color: isActive
+                          ? activeTheme.primaryColor
+                          : Colors.transparent,
                       width: 2,
                     ),
                   ),
@@ -1246,14 +1496,21 @@ class _UpgradesScreenState extends State<UpgradesScreen> {
                           children: [
                             Text(
                               'Уровень сложности ${config.level}',
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 18,
+                              ),
                             ),
                             trailingWidget,
                           ],
                         ),
                         const SizedBox(height: 8),
-                        Text('• Размер сетки: ${config.gridSize} x ${config.gridSize}'),
-                        Text('• Объектов на поле: ${config.objectsCount} (${config.objectsCount == 1 ? "Один" : "Два"})'),
+                        Text(
+                          '• Размер сетки: ${config.gridSize} x ${config.gridSize}',
+                        ),
+                        Text(
+                          '• Объектов на поле: ${config.objectsCount} (${config.objectsCount == 1 ? "Один" : "Два"})',
+                        ),
                         Text('• Статичных преград: ${config.obstaclesCount}'),
                         Text('• Макс. шаг: ±${config.maxStep} клетки'),
                         Text('• Награда за ход: ${config.basePoints} 🪙'),
@@ -1263,13 +1520,20 @@ class _UpgradesScreenState extends State<UpgradesScreen> {
                           children: [
                             Text(
                               'Идеальных побед на уровне: $wins',
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
                             ),
                             if (!isUnlocked && config.level > 1)
                               Text(
                                 'Требуется побед на Ур. ${config.level - 1}: $prevWins / ${config.winsRequiredFromPrevious}',
                                 style: TextStyle(
-                                  color: prevWins >= config.winsRequiredFromPrevious ? Colors.green : Colors.red,
+                                  color:
+                                      prevWins >=
+                                          config.winsRequiredFromPrevious
+                                      ? Colors.green
+                                      : Colors.red,
                                   fontWeight: FontWeight.bold,
                                   fontSize: 11,
                                 ),
@@ -1306,9 +1570,14 @@ class _ShopScreenState extends State<ShopScreen> {
         context: context,
         builder: (context) => AlertDialog(
           title: const Text('Недостаточно монет!'),
-          content: Text('Для покупки темы "${theme.name}" требуется ${theme.price} 🪙.'),
+          content: Text(
+            'Для покупки темы "${theme.name}" требуется ${theme.price} 🪙.',
+          ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Понятно')),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Понятно'),
+            ),
           ],
         ),
       );
@@ -1322,7 +1591,10 @@ class _ShopScreenState extends State<ShopScreen> {
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Вы успешно приобрели тему "${theme.name}"!'), backgroundColor: Colors.green),
+      SnackBar(
+        content: Text('Вы успешно приобрели тему "${theme.name}"!'),
+        backgroundColor: Colors.green,
+      ),
     );
   }
 
@@ -1334,7 +1606,10 @@ class _ShopScreenState extends State<ShopScreen> {
           title: const Text('Недостаточно монет!'),
           content: Text('Вам не хватает монет для покупки товара.'),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Ок')),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Ок'),
+            ),
           ],
         ),
       );
@@ -1352,7 +1627,10 @@ class _ShopScreenState extends State<ShopScreen> {
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Покупка успешно совершена!'), backgroundColor: Colors.green),
+      const SnackBar(
+        content: Text('Покупка успешно совершена!'),
+        backgroundColor: Colors.green,
+      ),
     );
   }
 
@@ -1360,10 +1638,7 @@ class _ShopScreenState extends State<ShopScreen> {
   Widget build(BuildContext context) {
     final activeTheme = getActiveTheme();
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Магазин предметов'),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text('Магазин предметов'), centerTitle: true),
       body: Column(
         children: [
           Container(
@@ -1374,7 +1649,10 @@ class _ShopScreenState extends State<ShopScreen> {
               children: [
                 Text(
                   'Баланс: ${StorageService.userTotalBank} 🪙',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
                 ),
                 Row(
                   children: [
@@ -1392,7 +1670,10 @@ class _ShopScreenState extends State<ShopScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Вспомогательные расходники:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                  const Text(
+                    'Вспомогательные расходники:',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                  ),
                   const SizedBox(height: 12),
                   Row(
                     children: [
@@ -1401,7 +1682,7 @@ class _ShopScreenState extends State<ShopScreen> {
                           icon: '🛡️',
                           title: 'Щит Спасения',
                           desc: 'Защищает от 1 промаха',
-                          price: 1000, 
+                          price: 1000,
                           onBuy: () => _buyConsumable('shield', 1000),
                         ),
                       ),
@@ -1411,14 +1692,17 @@ class _ShopScreenState extends State<ShopScreen> {
                           icon: '👁️',
                           title: 'Рентген-визор',
                           desc: 'Показывает объекты на 3 сек',
-                          price: 1500, 
+                          price: 1500,
                           onBuy: () => _buyConsumable('xray', 1500),
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 24),
-                  const Text('Комплексные Игровые Темы:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                  const Text(
+                    'Комплексные Игровые Темы:',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                  ),
                   const SizedBox(height: 12),
                   ListView.builder(
                     shrinkWrap: true,
@@ -1426,13 +1710,21 @@ class _ShopScreenState extends State<ShopScreen> {
                     itemCount: gameThemes.length,
                     itemBuilder: (context, index) {
                       final theme = gameThemes[index];
-                      final isUnlocked = StorageService.unlockedThemes.contains(theme.id) || StorageService.devModeActive;
+                      final isUnlocked =
+                          StorageService.unlockedThemes.contains(theme.id) ||
+                          StorageService.devModeActive;
                       final isActive = activeThemeIdNotifier.value == theme.id;
 
                       Widget actionButton;
                       if (isActive) {
                         actionButton = const Chip(
-                          label: Text('Активна', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                          label: Text(
+                            'Активна',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                           backgroundColor: Colors.green,
                         );
                       } else if (isUnlocked) {
@@ -1447,10 +1739,22 @@ class _ShopScreenState extends State<ShopScreen> {
                         );
                       } else {
                         actionButton = ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(backgroundColor: theme.primaryColor),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: theme.primaryColor,
+                          ),
                           onPressed: () => _buyTheme(theme),
-                          icon: const Icon(Icons.shopping_cart, size: 16, color: Colors.white),
-                          label: Text('${theme.price} 🪙', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                          icon: const Icon(
+                            Icons.shopping_cart,
+                            size: 16,
+                            color: Colors.white,
+                          ),
+                          label: Text(
+                            '${theme.price} 🪙',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         );
                       }
 
@@ -1459,7 +1763,9 @@ class _ShopScreenState extends State<ShopScreen> {
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                           side: BorderSide(
-                            color: isActive ? theme.primaryColor : Colors.transparent,
+                            color: isActive
+                                ? theme.primaryColor
+                                : Colors.transparent,
                             width: 2,
                           ),
                         ),
@@ -1471,11 +1777,16 @@ class _ShopScreenState extends State<ShopScreen> {
                                 width: 50,
                                 height: 50,
                                 decoration: BoxDecoration(
-                                  color: theme.primaryColor.withValues(alpha: 0.15),
+                                  color: theme.primaryColor.withValues(
+                                    alpha: 0.15,
+                                  ),
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: const Center(
-                                  child: Text('🎨', style: TextStyle(fontSize: 24)),
+                                  child: Text(
+                                    '🎨',
+                                    style: TextStyle(fontSize: 24),
+                                  ),
                                 ),
                               ),
                               const SizedBox(width: 14),
@@ -1485,12 +1796,18 @@ class _ShopScreenState extends State<ShopScreen> {
                                   children: [
                                     Text(
                                       theme.name,
-                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                      ),
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
                                       '${theme.obj1}  /  ${theme.obj2}\nПреграда: ${theme.obstacle}',
-                                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey,
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -1527,17 +1844,34 @@ class _ShopScreenState extends State<ShopScreen> {
           children: [
             Text(icon, style: const TextStyle(fontSize: 32)),
             const SizedBox(height: 6),
-            Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14), textAlign: TextAlign.center),
+            Text(
+              title,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+              textAlign: TextAlign.center,
+            ),
             const SizedBox(height: 4),
-            Text(desc, style: const TextStyle(fontSize: 10, color: Colors.grey), textAlign: TextAlign.center, maxLines: 2),
+            Text(
+              desc,
+              style: const TextStyle(fontSize: 10, color: Colors.grey),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+            ),
             const SizedBox(height: 10),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(horizontal: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
               ),
               onPressed: onBuy,
-              child: Text('$price 🪙', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+              child: Text(
+                '$price 🪙',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           ],
         ),
@@ -1561,15 +1895,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     final activeTheme = getActiveTheme();
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Настройки'),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text('Настройки'), centerTitle: true),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           Card(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
             child: Column(
               children: [
                 SwitchListenable(
@@ -1578,7 +1911,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   value: themeNotifier.value == ThemeMode.dark,
                   onChanged: (val) {
                     setState(() {
-                      themeNotifier.value = val ? ThemeMode.dark : ThemeMode.light;
+                      themeNotifier.value = val
+                          ? ThemeMode.dark
+                          : ThemeMode.light;
                       StorageService.syncWithDisk();
                     });
                   },
@@ -1660,27 +1995,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 context: context,
                 builder: (context) => AlertDialog(
                   title: const Text('Сброс прогресса?'),
-                  content: const Text('Это действие безвозвратно удалит монеты, открытые темы и сложности.'),
+                  content: const Text(
+                    'Это действие безвозвратно удалит монеты, открытые темы и сложности.',
+                  ),
                   actions: [
-                    TextButton(onPressed: () => Navigator.pop(context), child: const Text('Отмена')),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Отмена'),
+                    ),
                     TextButton(
                       onPressed: () async {
                         final prefs = await SharedPreferences.getInstance();
                         await prefs.clear();
                         await StorageService.loadData();
-                        
+
                         if (context.mounted) {
                           Navigator.pop(context);
                           Navigator.pop(context);
                         }
                       },
-                      child: const Text('Сбросить', style: TextStyle(color: Colors.red)),
+                      child: const Text(
+                        'Сбросить',
+                        style: TextStyle(color: Colors.red),
+                      ),
                     ),
                   ],
                 ),
               );
             },
-            child: const Text('Сбросить весь прогресс', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            child: const Text(
+              'Сбросить весь прогресс',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
       ),
@@ -1706,11 +2055,11 @@ class SwitchListenable extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListTile(
       title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-      subtitle: Text(subtitle, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-      trailing: Switch(
-        value: value,
-        onChanged: onChanged,
+      subtitle: Text(
+        subtitle,
+        style: const TextStyle(fontSize: 12, color: Colors.grey),
       ),
+      trailing: Switch(value: value, onChanged: onChanged),
     );
   }
 }
@@ -1746,7 +2095,7 @@ class _GameScreenState extends State<GameScreen> {
   List<String> devLogs = [];
 
   bool superGameMode = false;
-  int superGameStep = 1; 
+  int superGameStep = 1;
   bool superGameFailed = false;
   bool superGameSuccess = false;
   List<int> tappedIndices = [];
@@ -1762,7 +2111,10 @@ class _GameScreenState extends State<GameScreen> {
   void _setupInitialGrid() {
     obstacleCoordinates.clear();
     while (obstacleCoordinates.length < widget.config.obstaclesCount) {
-      final p = Point(_random.nextInt(widget.config.gridSize), _random.nextInt(widget.config.gridSize));
+      final p = Point(
+        _random.nextInt(widget.config.gridSize),
+        _random.nextInt(widget.config.gridSize),
+      );
       if (!obstacleCoordinates.contains(p)) {
         obstacleCoordinates.add(p);
       }
@@ -1773,26 +2125,43 @@ class _GameScreenState extends State<GameScreen> {
 
     Point<int>? p1;
     while (p1 == null) {
-      final p = Point(_random.nextInt(widget.config.gridSize), _random.nextInt(widget.config.gridSize));
+      final p = Point(
+        _random.nextInt(widget.config.gridSize),
+        _random.nextInt(widget.config.gridSize),
+      );
       if (!obstacleCoordinates.contains(p)) {
         p1 = p;
       }
     }
-    objects.add(ObjectState(id: 1, x: p1.x, y: p1.y, emoji: theme.obj1.split(' ').first));
+    objects.add(
+      ObjectState(id: 1, x: p1.x, y: p1.y, emoji: theme.obj1.split(' ').first),
+    );
 
     if (widget.config.objectsCount > 1) {
       Point<int>? p2;
       while (p2 == null) {
-        final p = Point(_random.nextInt(widget.config.gridSize), _random.nextInt(widget.config.gridSize));
+        final p = Point(
+          _random.nextInt(widget.config.gridSize),
+          _random.nextInt(widget.config.gridSize),
+        );
         if (!obstacleCoordinates.contains(p) && p != p1) {
           p2 = p;
         }
       }
-      objects.add(ObjectState(id: 2, x: p2.x, y: p2.y, emoji: theme.obj2.split(' ').first));
+      objects.add(
+        ObjectState(
+          id: 2,
+          x: p2.x,
+          y: p2.y,
+          emoji: theme.obj2.split(' ').first,
+        ),
+      );
     }
 
     _logDev("--- СПАВН ОБЪЕКТОВ И ПРЕПЯТСТВИЙ ---");
-    _logDev("Размер сетки: ${widget.config.gridSize}x${widget.config.gridSize}");
+    _logDev(
+      "Размер сетки: ${widget.config.gridSize}x${widget.config.gridSize}",
+    );
     _logDev("Камни: $obstacleCoordinates");
     for (var obj in objects) {
       _logDev("Объект ${obj.id} [${obj.emoji}] спавн на: (${obj.x}, ${obj.y})");
@@ -1837,7 +2206,7 @@ class _GameScreenState extends State<GameScreen> {
 
     int nextX = activeObj.x;
     int nextY = activeObj.y;
-    
+
     int stepX = 0;
     int stepY = 0;
     String dirX = "";
@@ -1868,7 +2237,11 @@ class _GameScreenState extends State<GameScreen> {
       }
     }
 
-    bool isInside = nextX >= 0 && nextX < widget.config.gridSize && nextY >= 0 && nextY < widget.config.gridSize;
+    bool isInside =
+        nextX >= 0 &&
+        nextX < widget.config.gridSize &&
+        nextY >= 0 &&
+        nextY < widget.config.gridSize;
     bool landsOnObstacle = obstacleCoordinates.contains(Point(nextX, nextY));
 
     bool landsOnOtherObject = false;
@@ -1892,7 +2265,9 @@ class _GameScreenState extends State<GameScreen> {
       currentMove = PendingMove(
         objectId: activeObj.id,
         objectEmoji: activeObj.emoji,
-        directionText: "${dirX.isNotEmpty ? '$dirX $stepX' : ''} ${dirY.isNotEmpty ? '$dirY $stepY' : ''}".trim(),
+        directionText:
+            "${dirX.isNotEmpty ? '$dirX $stepX' : ''} ${dirY.isNotEmpty ? '$dirY $stepY' : ''}"
+                .trim(),
         step: stepX + stepY,
         nextX: nextX,
         nextY: nextY,
@@ -1902,7 +2277,9 @@ class _GameScreenState extends State<GameScreen> {
       );
     });
 
-    _logDev("РАУНД $currentRound. Ход для ${activeObj.emoji} из (${activeObj.x}, ${activeObj.y}) -> Цель: ($nextX, $nextY). Безопасен: $isSafe.");
+    _logDev(
+      "РАУНД $currentRound. Ход для ${activeObj.emoji} из (${activeObj.x}, ${activeObj.y}) -> Цель: ($nextX, $nextY). Безопасен: $isSafe.",
+    );
     VoiceService.speakMove(speech);
   }
 
@@ -1917,19 +2294,25 @@ class _GameScreenState extends State<GameScreen> {
 
     if (isCorrect) {
       int reward = widget.config.basePoints;
-      if (StorageService.isBlindModeGlobal) reward *= 2; 
+      if (StorageService.isBlindModeGlobal) reward *= 2;
 
       setState(() {
         if (currentMove!.isSafe) {
-          final activeObj = objects.firstWhere((o) => o.id == currentMove!.objectId);
+          final activeObj = objects.firstWhere(
+            (o) => o.id == currentMove!.objectId,
+          );
           activeObj.x = currentMove!.nextX;
           activeObj.y = currentMove!.nextY;
           coinsEarned += reward;
           currentRound++;
-          _logDev("УСПЕХ: Объект ${activeObj.emoji} перемещен на (${activeObj.x}, ${activeObj.y}). Раунд пройден.");
+          _logDev(
+            "УСПЕХ: Объект ${activeObj.emoji} перемещен на (${activeObj.x}, ${activeObj.y}). Раунд пройден.",
+          );
         } else {
           coinsEarned += (reward ~/ 2);
-          _logDev("УСПЕХ: Предотвращен тупик! Объект остался на месте. Генерируем новую команду для раунда $currentRound.");
+          _logDev(
+            "УСПЕХ: Предотвращен тупик! Объект остался на месте. Генерируем новую команду для раунда $currentRound.",
+          );
         }
       });
 
@@ -1943,7 +2326,8 @@ class _GameScreenState extends State<GameScreen> {
 
         _showCustomDialog(
           title: '🛡️ Щит Спас Вас!',
-          content: 'Был израсходован Щит Спасения. Вы застрахованы от этой ошибки, продолжаем сессию!',
+          content:
+              'Был израсходован Щит Спасения. Вы застрахованы от этой ошибки, продолжаем сессию!',
           buttonText: 'Уф, спасибо!',
         );
         _logDev("ОШИБКА: Использован автоматический Щит. Сессия спасена.");
@@ -1983,7 +2367,7 @@ class _GameScreenState extends State<GameScreen> {
         tappedIndices.add(index);
       });
       VoiceService.speakStatic("supergame_trap");
-      StorageService.addSessionToHistory(coinsEarned, true); 
+      StorageService.addSessionToHistory(coinsEarned, true);
       return;
     }
 
@@ -1995,9 +2379,9 @@ class _GameScreenState extends State<GameScreen> {
           tappedIndices.add(index);
           if (objects.length == 1) {
             superGameSuccess = true;
-            coinsEarned *= 2; 
+            coinsEarned *= 2;
           } else {
-            superGameStep = 2; 
+            superGameStep = 2;
           }
         });
       } else {
@@ -2010,7 +2394,7 @@ class _GameScreenState extends State<GameScreen> {
         setState(() {
           tappedIndices.add(index);
           superGameSuccess = true;
-          coinsEarned *= 2; 
+          coinsEarned *= 2;
         });
       } else {
         _handleSuperGameMiss(index);
@@ -2035,7 +2419,11 @@ class _GameScreenState extends State<GameScreen> {
   void _activateXray() {
     if (StorageService.itemXrayCount <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('У вас нет Рентген-визоров в инвентаре! Купите в магазине.')),
+        const SnackBar(
+          content: Text(
+            'У вас нет Рентген-визоров в инвентаре! Купите в магазине.',
+          ),
+        ),
       );
       return;
     }
@@ -2057,14 +2445,21 @@ class _GameScreenState extends State<GameScreen> {
     });
   }
 
-  void _showCustomDialog({required String title, required String content, required String buttonText}) {
+  void _showCustomDialog({
+    required String title,
+    required String content,
+    required String buttonText,
+  }) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
         content: Text(content),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: Text(buttonText)),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(buttonText),
+          ),
         ],
       ),
     );
@@ -2146,13 +2541,16 @@ class _GameScreenState extends State<GameScreen> {
           decoration: BoxDecoration(
             color: Theme.of(context).cardColor,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: activeTheme.primaryColor.withValues(alpha: 0.3), width: 2),
+            border: Border.all(
+              color: activeTheme.primaryColor.withValues(alpha: 0.3),
+              width: 2,
+            ),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.08),
                 blurRadius: 15,
                 spreadRadius: 2,
-              )
+              ),
             ],
           ),
           child: GridView.builder(
@@ -2160,7 +2558,8 @@ class _GameScreenState extends State<GameScreen> {
             itemCount: widget.config.gridSize * widget.config.gridSize,
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: widget.config.gridSize,
-              crossAxisSpacing: 4, // Уменьшено расстояние для поддержки сеток 10х10
+              crossAxisSpacing:
+                  4, // Уменьшено расстояние для поддержки сеток 10х10
               mainAxisSpacing: 4,
             ),
             itemBuilder: (context, index) {
@@ -2175,7 +2574,12 @@ class _GameScreenState extends State<GameScreen> {
                 }
               }
 
-              bool showGridBorders = !isBlind || isMemorizing || xrayActive || isGameOver || superGameMode;
+              bool showGridBorders =
+                  !isBlind ||
+                  isMemorizing ||
+                  xrayActive ||
+                  isGameOver ||
+                  superGameMode;
               Color cellBgColor = Colors.transparent;
 
               if (showGridBorders) {
@@ -2191,21 +2595,36 @@ class _GameScreenState extends State<GameScreen> {
                 if (isTapped) {
                   if (isObstacle) {
                     cellBgColor = Colors.red.withValues(alpha: 0.3);
-                    cellContent = const Text('❌', style: TextStyle(fontSize: 16));
+                    cellContent = const Text(
+                      '❌',
+                      style: TextStyle(fontSize: 16),
+                    );
                   } else if (activeObject != null) {
                     cellBgColor = Colors.green.withValues(alpha: 0.3);
-                    cellContent = Text(activeObject.emoji, style: const TextStyle(fontSize: 18));
+                    cellContent = Text(
+                      activeObject.emoji,
+                      style: const TextStyle(fontSize: 18),
+                    );
                   } else {
                     cellBgColor = Colors.red.withValues(alpha: 0.2);
-                    cellContent = const Text('💨', style: TextStyle(fontSize: 16));
+                    cellContent = const Text(
+                      '💨',
+                      style: TextStyle(fontSize: 16),
+                    );
                   }
                 }
               } else {
                 if (isMemorizing || xrayActive || isGameOver) {
                   if (activeObject != null) {
-                    cellContent = Text(activeObject.emoji, style: const TextStyle(fontSize: 18));
+                    cellContent = Text(
+                      activeObject.emoji,
+                      style: const TextStyle(fontSize: 18),
+                    );
                   } else if (isObstacle) {
-                    cellContent = Text(activeTheme.obstacle.split(' ').first, style: const TextStyle(fontSize: 18));
+                    cellContent = Text(
+                      activeTheme.obstacle.split(' ').first,
+                      style: const TextStyle(fontSize: 18),
+                    );
                   }
                 } else if (StorageService.devModeActive) {
                   if (activeObject != null) {
@@ -2217,13 +2636,19 @@ class _GameScreenState extends State<GameScreen> {
                           borderRadius: BorderRadius.circular(6),
                         ),
                         alignment: Alignment.center,
-                        child: Text(activeObject.emoji, style: const TextStyle(fontSize: 14)),
+                        child: Text(
+                          activeObject.emoji,
+                          style: const TextStyle(fontSize: 14),
+                        ),
                       ),
                     );
                   } else if (isObstacle) {
                     cellContent = Opacity(
                       opacity: 0.45,
-                      child: Text(activeTheme.obstacle.split(' ').first, style: const TextStyle(fontSize: 14)),
+                      child: Text(
+                        activeTheme.obstacle.split(' ').first,
+                        style: const TextStyle(fontSize: 14),
+                      ),
                     );
                   }
                 }
@@ -2263,12 +2688,24 @@ class _GameScreenState extends State<GameScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Text('ИГРА ОКОНЧЕНА', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.red)),
+            const Text(
+              'ИГРА ОКОНЧЕНА',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Colors.red,
+              ),
+            ),
             const SizedBox(height: 8),
-            Text('Вы заработали: $coinsEarned 🪙', style: const TextStyle(fontSize: 18)),
+            Text(
+              'Вы заработали: $coinsEarned 🪙',
+              style: const TextStyle(fontSize: 18),
+            ),
             const SizedBox(height: 20),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: activeTheme.primaryColor),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: activeTheme.primaryColor,
+              ),
               onPressed: () {
                 setState(() {
                   isGameOver = false;
@@ -2281,7 +2718,10 @@ class _GameScreenState extends State<GameScreen> {
                   _startMemorizationCountdown();
                 });
               },
-              child: const Text('Повторить попытку', style: TextStyle(color: Colors.white)),
+              child: const Text(
+                'Повторить попытку',
+                style: TextStyle(color: Colors.white),
+              ),
             ),
           ],
         ),
@@ -2296,7 +2736,11 @@ class _GameScreenState extends State<GameScreen> {
           children: [
             const Text(
               '🔥 СУПЕР-ИГРА УДВОЕНИЯ 🔥',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.orange),
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.orange,
+              ),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 6),
@@ -2309,26 +2753,35 @@ class _GameScreenState extends State<GameScreen> {
             ),
             const SizedBox(height: 12),
             if (superGameFailed) ...[
-              const Text('Упс! Неверный тап. Удвоение аннулировано.', style: TextStyle(color: Colors.red)),
+              const Text(
+                'Упс! Неверный тап. Удвоение аннулировано.',
+                style: TextStyle(color: Colors.red),
+              ),
               const SizedBox(height: 12),
               ElevatedButton(
                 onPressed: () => Navigator.pop(context),
                 child: const Text('Завершить сессию'),
-              )
+              ),
             ] else if (superGameSuccess) ...[
-              const Text('ПОТРЯСАЮЩЕ! Вы нашли все цели! Награда х2 🪙!', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+              const Text(
+                'ПОТРЯСАЮЩЕ! Вы нашли все цели! Награда х2 🪙!',
+                style: TextStyle(
+                  color: Colors.green,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               const SizedBox(height: 12),
               ElevatedButton(
                 onPressed: _completePerfectWithBonus,
                 child: const Text('Забрать монеты и выйти'),
-              )
+              ),
             ] else ...[
               const Text(
                 'Тапните по ячейке поля на память.\nОпасайтесь скрытых ловушек на месте камней!',
                 style: TextStyle(color: Colors.grey, fontSize: 12),
                 textAlign: TextAlign.center,
-              )
-            ]
+              ),
+            ],
           ],
         ),
       );
@@ -2344,25 +2797,39 @@ class _GameScreenState extends State<GameScreen> {
             Text(
               'Запоминание позиций... $memorizationTime сек.',
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.orange),
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.orange,
+              ),
             ),
           ] else ...[
             if (StorageService.showSpeechText)
               Card(
                 elevation: 1,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 child: Padding(
                   padding: const EdgeInsets.all(12.0),
                   child: Column(
                     children: [
                       const Text(
                         'Диктор зачитал ход:',
-                        style: TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         currentMove?.speechText ?? "Генерация...",
-                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: activeTheme.primaryColor),
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: activeTheme.primaryColor,
+                        ),
                         textAlign: TextAlign.center,
                       ),
                     ],
@@ -2379,13 +2846,22 @@ class _GameScreenState extends State<GameScreen> {
                     child: ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.green,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
                       ),
                       onPressed: () => _onPlayerDecision(true),
-                      icon: const Icon(Icons.arrow_forward_rounded, color: Colors.white),
+                      icon: const Icon(
+                        Icons.arrow_forward_rounded,
+                        color: Colors.white,
+                      ),
                       label: const Text(
                         'Дальше',
-                        style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
@@ -2397,13 +2873,22 @@ class _GameScreenState extends State<GameScreen> {
                     child: ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.red,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
                       ),
                       onPressed: () => _onPlayerDecision(false),
-                      icon: const Icon(Icons.front_hand_rounded, color: Colors.white),
+                      icon: const Icon(
+                        Icons.front_hand_rounded,
+                        color: Colors.white,
+                      ),
                       label: const Text(
                         'Стоп',
-                        style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
@@ -2417,13 +2902,29 @@ class _GameScreenState extends State<GameScreen> {
             children: [
               Text(
                 '🪙 Заработано: $coinsEarned',
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
               ),
               if (StorageService.isBlindModeGlobal)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(color: Colors.orange, borderRadius: BorderRadius.circular(8)),
-                  child: const Text('Слепой режим х2', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.orange,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Text(
+                    'Слепой режим х2',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
             ],
           ),
@@ -2443,7 +2944,11 @@ class _GameScreenState extends State<GameScreen> {
                 itemBuilder: (context, idx) {
                   return Text(
                     devLogs[devLogs.length - 1 - idx],
-                    style: const TextStyle(fontFamily: 'Courier', fontSize: 10, color: Colors.blueGrey),
+                    style: const TextStyle(
+                      fontFamily: 'Courier',
+                      fontSize: 10,
+                      color: Colors.blueGrey,
+                    ),
                   );
                 },
               ),
