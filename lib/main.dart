@@ -1,7 +1,9 @@
 import 'dart:math';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:audioplayers/audioplayers.dart' show AudioPlayer, AssetSource;
 import 'package:audio_session/audio_session.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -166,26 +168,25 @@ class GameSession {
 }
 
 // =========================================================================
-// ПОСТОЯННАЯ ПАМЯТЬ НА ДИСКЕ (ХРАНИЛИЩЕ)
+// ПОСТОЯННАЯ ПАМЯТЬ НА УСТРОЙСТВЕ (ХРАНИЛИЩЕ)
 // =========================================================================
 class StorageService {
   static List<GameSession> gameHistory = [];
   static int userTotalBank = 0;
   static int currentStreak = 1;
 
-  // Отслеживание успешных побед для каждой сложности (для гибридной разблокировки)
-  static Map<int, int> difficultyWins = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0};
-  // Список разблокированных сложностей (1 всегда открыта)
+  // Расширено под 10 уровней
+  static Map<int, int> difficultyWins = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0};
   static List<int> unlockedDifficulties = [1];
-  // Купленные игровые темы
   static List<String> unlockedThemes = ['microworld'];
 
   static int itemShieldCount = 0;
   static int itemXrayCount = 0;
 
   static bool controlsOnLeft = true;
-  static bool devModeActive = false; // Режим тестировщика
-  static bool isBlindModeGlobal = false; // Глобальный тумблер слепой сетки
+  static bool devModeActive = false; 
+  static bool isBlindModeGlobal = true; 
+  static bool showSpeechText = false; 
 
   static int activeDifficulty = 1;
 
@@ -195,31 +196,27 @@ class StorageService {
     itemShieldCount = prefs.getInt('itemShieldCount') ?? 0;
     itemXrayCount = prefs.getInt('itemXrayCount') ?? 0;
     controlsOnLeft = prefs.getBool('controlsOnLeft') ?? true;
-    isBlindModeGlobal = prefs.getBool('isBlindModeGlobal') ?? false;
+    isBlindModeGlobal = prefs.getBool('isBlindModeGlobal') ?? true; 
     devModeActive = prefs.getBool('devModeActive') ?? false;
+    showSpeechText = prefs.getBool('showSpeechText') ?? false; 
 
-    // Загрузка сложностей
     unlockedDifficulties = (prefs.getStringList('unlockedDifficulties') ?? ['1'])
         .map((e) => int.parse(e))
         .toList();
     activeDifficulty = prefs.getInt('activeDifficulty') ?? 1;
 
-    // Загрузка побед по уровням
     String? winsJson = prefs.getString('difficultyWins');
     if (winsJson != null) {
       Map<String, dynamic> decoded = jsonDecode(winsJson);
       difficultyWins = decoded.map((key, value) => MapEntry(int.parse(key), value as int));
     }
 
-    // Загрузка тем
     unlockedThemes = prefs.getStringList('unlockedThemes') ?? ['microworld'];
     activeThemeIdNotifier.value = prefs.getString('activeThemeId') ?? 'microworld';
 
-    // Загрузка истории
     List<String> historyRaw = prefs.getStringList('gameHistoryJson') ?? [];
     gameHistory = historyRaw.map((e) => GameSession.fromJson(jsonDecode(e))).toList();
 
-    // Расчет страйка (Исправление логики дней подряд)
     await _checkDailyStreak(prefs);
 
     bool isDark = prefs.getBool('isDarkMode') ?? false;
@@ -244,7 +241,6 @@ class StorageService {
       } else if (diffInDays > 1) {
         currentStreak = 1;
       }
-      // Если diffInDays == 0, страйк сохраняется без изменений
     } else {
       currentStreak = 1;
     }
@@ -261,6 +257,7 @@ class StorageService {
     await prefs.setBool('controlsOnLeft', controlsOnLeft);
     await prefs.setBool('isBlindModeGlobal', isBlindModeGlobal);
     await prefs.setBool('devModeActive', devModeActive);
+    await prefs.setBool('showSpeechText', showSpeechText); 
 
     await prefs.setStringList('unlockedDifficulties', unlockedDifficulties.map((e) => e.toString()).toList());
     await prefs.setInt('activeDifficulty', activeDifficulty);
@@ -276,7 +273,6 @@ class StorageService {
   }
 
   static void addSessionToHistory(int score, bool isPerfect) {
-    // Сохраняем победу
     if (isPerfect) {
       difficultyWins[activeDifficulty] = (difficultyWins[activeDifficulty] ?? 0) + 1;
     }
@@ -306,7 +302,7 @@ class StorageService {
 }
 
 // =========================================================================
-// НАСТРОЙКИ СЛОЖНОСТЕЙ И КОНФИГУРАЦИЯ
+// НАСТРОЙКИ СЛОЖНОСТЕЙ ДО УРОВНЯ 10 (СЕТКА 10х10)
 // =========================================================================
 class DifficultyConfig {
   final int level;
@@ -327,13 +323,14 @@ class DifficultyConfig {
     required this.winsRequiredFromPrevious,
   });
 
-  // Честное начисление игровых монет в зависимости от уровня сложности
   int get basePoints {
     int points = 10;
     if (gridSize >= 4) points += 5;
-    if (gridSize >= 5) points += 10;
+    if (gridSize >= 6) points += 10;
+    if (gridSize >= 8) points += 15;
+    if (gridSize >= 10) points += 20;
     if (objectsCount > 1) points += 5;
-    if (obstaclesCount > 0) points += 5;
+    if (obstaclesCount > 0) points += 5 * obstaclesCount;
     if (maxStep > 1) points += 5 * (maxStep - 1);
     return points;
   }
@@ -341,19 +338,24 @@ class DifficultyConfig {
 
 final List<DifficultyConfig> difficulties = [
   const DifficultyConfig(level: 1, gridSize: 3, objectsCount: 1, obstaclesCount: 0, maxStep: 1, unlockCost: 0, winsRequiredFromPrevious: 0),
-  const DifficultyConfig(level: 2, gridSize: 4, objectsCount: 2, obstaclesCount: 0, maxStep: 1, unlockCost: 1000, winsRequiredFromPrevious: 5),
-  const DifficultyConfig(level: 3, gridSize: 4, objectsCount: 1, obstaclesCount: 1, maxStep: 1, unlockCost: 3000, winsRequiredFromPrevious: 5),
-  const DifficultyConfig(level: 4, gridSize: 5, objectsCount: 2, obstaclesCount: 1, maxStep: 2, unlockCost: 6000, winsRequiredFromPrevious: 7),
-  const DifficultyConfig(level: 5, gridSize: 6, objectsCount: 2, obstaclesCount: 2, maxStep: 3, unlockCost: 12000, winsRequiredFromPrevious: 10),
+  const DifficultyConfig(level: 2, gridSize: 4, objectsCount: 2, obstaclesCount: 0, maxStep: 1, unlockCost: 1000, winsRequiredFromPrevious: 4),
+  const DifficultyConfig(level: 3, gridSize: 4, objectsCount: 1, obstaclesCount: 1, maxStep: 1, unlockCost: 2500, winsRequiredFromPrevious: 4),
+  const DifficultyConfig(level: 4, gridSize: 5, objectsCount: 2, obstaclesCount: 1, maxStep: 2, unlockCost: 5000, winsRequiredFromPrevious: 5),
+  const DifficultyConfig(level: 5, gridSize: 6, objectsCount: 2, obstaclesCount: 2, maxStep: 2, unlockCost: 9000, winsRequiredFromPrevious: 5),
+  const DifficultyConfig(level: 6, gridSize: 7, objectsCount: 1, obstaclesCount: 3, maxStep: 2, unlockCost: 14000, winsRequiredFromPrevious: 6),
+  const DifficultyConfig(level: 7, gridSize: 8, objectsCount: 2, obstaclesCount: 3, maxStep: 3, unlockCost: 20000, winsRequiredFromPrevious: 6),
+  const DifficultyConfig(level: 8, gridSize: 9, objectsCount: 1, obstaclesCount: 4, maxStep: 3, unlockCost: 28000, winsRequiredFromPrevious: 7),
+  const DifficultyConfig(level: 9, gridSize: 9, objectsCount: 2, obstaclesCount: 5, maxStep: 4, unlockCost: 38000, winsRequiredFromPrevious: 7),
+  const DifficultyConfig(level: 10, gridSize: 10, objectsCount: 2, obstaclesCount: 6, maxStep: 4, unlockCost: 50000, winsRequiredFromPrevious: 8),
 ];
 
 // =========================================================================
 // КЛАССЫ СОСТОЯНИЙ И ИГРОВОЙ ДВИЖОК
 // =========================================================================
 class ObjectState {
-  final int id; // 1 или 2
-  int x; // col
-  int y; // row
+  final int id; 
+  int x; 
+  int y; 
   final String emoji;
 
   ObjectState({required this.id, required this.x, required this.y, required this.emoji});
@@ -370,6 +372,7 @@ class PendingMove {
   final int nextY;
   final bool isSafe;
   final String speechText;
+  final List<String> speechClips;
 
   PendingMove({
     required this.objectId,
@@ -380,15 +383,65 @@ class PendingMove {
     required this.nextY,
     required this.isSafe,
     required this.speechText,
+    required this.speechClips,
   });
 }
 
+// Результат генерации озвучки хода: и текст (для UI/fallback), и список
+// аудиоклипов, которые проигрываются подряд нейро-голосом.
+class MoveSpeech {
+  final String text;
+  final List<String> clips;
+  const MoveSpeech(this.text, this.clips);
+}
+
 // =========================================================================
-// СИНТЕЗАТОР РЕЧИ (УЛУЧШЕННЫЕ ЖИВЫЕ ШАБЛОНЫ)
+// СИНТЕЗАТОР РЕЧИ
 // =========================================================================
 class TTSEngine {
   static final FlutterTts _flutterTts = FlutterTts();
   static double volume = 0.9;
+
+  static const Map<String, List<String>> _actions = {
+    "Рыбка": ["поплыть", "уплыть"],
+    "Осьминог": ["поплыть", "уплыть"],
+    "Сокол": ["полететь", "улететь"],
+    "Муха": ["полететь", "улететь"],
+    "Дракон": ["полететь", "улететь"],
+    "Дрон": ["полететь", "улететь"],
+    "Ракета": ["полететь", "улететь"],
+    "Кошка": ["пойти", "пробежать"],
+    "Единорог": ["пойти", "ускакать"],
+    "Робот": ["двинуться", "переместиться"],
+    "Жук": ["проползти", "пойти"],
+    "Звезда": ["полететь", "улететь"]
+  };
+
+  // Модальные глаголы вступления: [текст, ключ-файла]. Должны совпадать
+  // с tool/generate_voice_lines.dart.
+  static const List<List<String>> _modals = [
+    ["хочет", "hochet"],
+    ["планирует", "planiruet"],
+    ["собирается", "sobiraetsya"],
+    ["пробует", "probuet"],
+  ];
+
+  // Транслитерация для имён аудиофайлов (см. tool/generate_voice_lines.dart).
+  static const Map<String, String> _nameKeys = {
+    "Муха": "mukha", "Жук": "zhuk", "Дрон": "dron", "Робот": "robot",
+    "Рыбка": "rybka", "Осьминог": "osminog", "Звезда": "zvezda",
+    "Ракета": "raketa", "Кошка": "koshka", "Сокол": "sokol",
+    "Дракон": "drakon", "Единорог": "edinorog",
+  };
+  static const Map<String, String> _actionKeys = {
+    "полететь": "poletet", "улететь": "uletet", "проползти": "propolzti",
+    "пойти": "poyti", "двинуться": "dvinutsya", "переместиться": "peremestitsya",
+    "поплыть": "poplyt", "уплыть": "uplyt", "пробежать": "probezhat",
+    "ускакать": "uskakat",
+  };
+  static const Map<String, String> _dirKeys = {
+    "влево": "vlevo", "вправо": "vpravo", "вверх": "vverh", "вниз": "vniz",
+  };
 
   static Future<void> init() async {
     await _flutterTts.setLanguage("ru-RU");
@@ -398,7 +451,6 @@ class TTSEngine {
     await _flutterTts.setSharedInstance(true);
 
     try {
-      // Использование строго типизированных перечислений вместо сырых строк для предотвращения ошибок iOS компиляции
       await _flutterTts.setIosAudioCategory(
         IosTextToSpeechAudioCategory.playback,
         [
@@ -421,19 +473,118 @@ class TTSEngine {
     await _flutterTts.stop();
   }
 
-  static String generateLivelySpeech(String name, String direction, int step) {
+  static String _stepWord(int s) => s == 1
+      ? "одну клетку"
+      : (s == 2 ? "две клетки" : (s == 3 ? "три клетки" : "четыре клетки"));
+
+  // Собирает озвучку хода: текст (для UI/fallback) и список аудиоклипов,
+  // которые проигрываются подряд: вступление + движение [+ "и на" + движение].
+  static MoveSpeech generateMove({
+    required String rawName,
+    required String dirX,
+    required int stepX,
+    required String dirY,
+    required int stepY,
+  }) {
     final rand = Random();
-    String stepWord = step == 1 ? "одну клетку" : (step == 2 ? "две клетки" : "три клетки");
 
-    List<String> templates = [
-      "$name аккуратно перемещается на $stepWord $direction",
-      "Теперь $name делает уверенный шаг на $stepWord $direction",
-      "Внимание, $name сдвигается на $stepWord $direction",
-      "А сейчас $name совершает маневр на $stepWord $direction",
-      "$name плавно переползает на $stepWord $direction",
-    ];
+    List<String> parts = rawName.split(' ');
+    String cleanName = parts.length > 1 ? parts[1].trim() : rawName.trim();
 
-    return templates[rand.nextInt(templates.length)];
+    List<String> availableActions = _actions[cleanName] ?? ["переместиться", "двинуться"];
+    String action = availableActions[rand.nextInt(availableActions.length)];
+    List<String> modal = _modals[rand.nextInt(_modals.length)];
+
+    String nameKey = _nameKeys[cleanName] ?? "koshka";
+    String actionKey = _actionKeys[action] ?? "poyti";
+
+    List<String> clips = ["intro_${nameKey}_${modal[1]}_$actionKey"];
+
+    // Сначала горизонталь (dirX), затем вертикаль (dirY) — как в логике хода.
+    List<List<dynamic>> moves = [];
+    if (dirX.isNotEmpty) moves.add([dirX, stepX]);
+    if (dirY.isNotEmpty) moves.add([dirY, stepY]);
+
+    List<String> motionTexts = [];
+    for (int i = 0; i < moves.length; i++) {
+      String dir = moves[i][0] as String;
+      int step = moves[i][1] as int;
+      if (i > 0) clips.add("connector_i_na");
+      clips.add("motion_${step}_${_dirKeys[dir]}");
+      motionTexts.add("${_stepWord(step)} $dir");
+    }
+
+    String text = "$cleanName ${modal[0]} $action на ${motionTexts.join(' и на ')}";
+    return MoveSpeech(text, clips);
+  }
+}
+
+// =========================================================================
+// ОЗВУЧКА: нейро-голос диктора (аудиоклипы) с откатом на системный TTS
+// =========================================================================
+class VoiceService {
+  static final AudioPlayer _player = AudioPlayer();
+  static bool _neuralReady = false;
+
+  static double get volume => TTSEngine.volume;
+  static set volume(double v) => TTSEngine.volume = v;
+
+  // Тексты статичных фраз — совпадают с tool/generate_voice_lines.dart.
+  static const Map<String, String> _staticTexts = {
+    "memorize": "Запомни расположение объектов на поле.",
+    "game_over": "Ой! Вы ошиблись и объект попал в тупик.",
+    "perfect_finish": "Отличная работа! Идеальная сессия. Запуск супер-игры.",
+    "supergame_trap": "Ловушка! Вы наступили на препятствие. Супер-игра окончена.",
+    "found_first": "Правильно! Нашли первый объект.",
+    "found_second": "Отлично! Нашли второй объект. Монеты удвоены!",
+    "miss_empty": "Промах! Это была пустая ячейка.",
+    "xray_on": "Рентген активирован на три секунды.",
+  };
+
+  static Future<void> init() async {
+    await TTSEngine.init();
+    // Проверяем, добавлен ли пакет нейро-озвучки. Если файлов ещё нет —
+    // работаем на системном голосе, приложение не ломается.
+    try {
+      await rootBundle.load('assets/voice/found_first.mp3');
+      _neuralReady = true;
+    } catch (_) {
+      _neuralReady = false;
+    }
+  }
+
+  static Future<void> stop() async {
+    try {
+      await _player.stop();
+    } catch (_) {}
+    await TTSEngine.stop();
+  }
+
+  static Future<void> speakStatic(String id) async {
+    await _speak([id], _staticTexts[id] ?? "");
+  }
+
+  static Future<void> speakMove(MoveSpeech move) async {
+    await _speak(move.clips, move.text);
+  }
+
+  static Future<void> _speak(List<String> clipIds, String fallbackText) async {
+    if (!_neuralReady) {
+      await TTSEngine.speak(fallbackText);
+      return;
+    }
+    await TTSEngine.stop();
+    try {
+      await _player.stop();
+      for (final id in clipIds) {
+        await _player.setVolume(TTSEngine.volume);
+        await _player.play(AssetSource('voice/$id.mp3'));
+        await _player.onPlayerComplete.first;
+      }
+    } catch (e) {
+      debugPrint("VoiceService: клип не найден ($e), откат на TTS");
+      await TTSEngine.speak(fallbackText);
+    }
   }
 }
 
@@ -453,7 +604,7 @@ class SpatialMemoryGame extends StatelessWidget {
           builder: (context, activeTheme, _) {
             final activeThemeData = getActiveTheme();
             return MaterialApp(
-              title: 'Ментальные Границы',
+              title: 'MemoryFly',
               debugShowCheckedModeBanner: false,
               themeMode: currentMode,
               theme: ThemeData(
@@ -499,7 +650,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
   @override
   void initState() {
     super.initState();
-    TTSEngine.init();
+    VoiceService.init();
   }
 
   void _onLogoTap() {
@@ -566,7 +717,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        '«Путь чист» — если объект после шага остается в пределах сетки и не натыкается на преграды или финал другого объекта.',
+                        '«Дальше» — если объект после шага остаётся в пределах сетки и не натыкается на преграды или финал другого объекта.',
                       ),
                     ),
                   ],
@@ -578,7 +729,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        '«Тупик!» — если шаг выводит объект наружу, на камень/преграду или сталкивает его со второй фишкой.',
+                        '«Стоп» — если шаг выводит объект наружу, на камень/преграду или сталкивает его со второй фишкой.',
                       ),
                     ),
                   ],
@@ -617,7 +768,6 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final activeTheme = getActiveTheme();
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -633,15 +783,41 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                     onTap: _onLogoTap,
                     child: Hero(
                       tag: 'game_logo',
-                      child: Text(
-                        'МЕНТАЛЬНЫЕ ГРАНИЦЫ',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.w900,
-                          color: activeTheme.primaryColor,
-                          letterSpacing: 1.2,
-                        ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          ShaderMask(
+                            shaderCallback: (bounds) => const LinearGradient(
+                              colors: [Color(0xFF14B8A6), Color(0xFF6366F1)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ).createShader(bounds),
+                            child: const Text(
+                              'MemoryFly',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 44,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 0.5,
+                                height: 1.0,
+                                color: Colors.white, // перекрывается градиентом ShaderMask
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'ТРЕНАЖЁР ПРОСТРАНСТВЕННОЙ ПАМЯТИ',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 2.0,
+                              color: Theme.of(context).brightness == Brightness.dark
+                                  ? Colors.white54
+                                  : Colors.black45,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -973,7 +1149,6 @@ class _UpgradesScreenState extends State<UpgradesScreen> {
       ),
       body: Column(
         children: [
-          // Глобальный переключатель Blind Mode теперь удобно находится на главном экране выбора режимов!
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             color: activeTheme.primaryColor.withValues(alpha: 0.1),
@@ -1021,7 +1196,6 @@ class _UpgradesScreenState extends State<UpgradesScreen> {
               itemCount: difficulties.length,
               itemBuilder: (context, index) {
                 final config = difficulties[index];
-                // В РЕЖИМЕ ТЕСТИРОВЩИКА доступны абсолютно все уровни без ограничений!
                 final isUnlocked = StorageService.unlockedDifficulties.contains(config.level) || StorageService.devModeActive;
                 final isActive = StorageService.activeDifficulty == config.level;
 
@@ -1045,7 +1219,6 @@ class _UpgradesScreenState extends State<UpgradesScreen> {
                     child: const Text('Выбрать'),
                   );
                 } else {
-                  // Заблокировано
                   trailingWidget = ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
                     onPressed: () => _tryUnlock(config),
@@ -1228,7 +1401,7 @@ class _ShopScreenState extends State<ShopScreen> {
                           icon: '🛡️',
                           title: 'Щит Спасения',
                           desc: 'Защищает от 1 промаха',
-                          price: 1000, // Цена обновлена до 1000
+                          price: 1000, 
                           onBuy: () => _buyConsumable('shield', 1000),
                         ),
                       ),
@@ -1238,7 +1411,7 @@ class _ShopScreenState extends State<ShopScreen> {
                           icon: '👁️',
                           title: 'Рентген-визор',
                           desc: 'Показывает объекты на 3 сек',
-                          price: 1500, // Цена обновлена до 1500
+                          price: 1500, 
                           onBuy: () => _buyConsumable('xray', 1500),
                         ),
                       ),
@@ -1253,7 +1426,6 @@ class _ShopScreenState extends State<ShopScreen> {
                     itemCount: gameThemes.length,
                     itemBuilder: (context, index) {
                       final theme = gameThemes[index];
-                      // В РЕЖИМЕ ТЕСТИРОВЩИКА доступны абсолютно все темы для мгновенного применения!
                       final isUnlocked = StorageService.unlockedThemes.contains(theme.id) || StorageService.devModeActive;
                       final isActive = activeThemeIdNotifier.value == theme.id;
 
@@ -1437,6 +1609,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 const Divider(height: 1),
                 SwitchListenable(
+                  title: 'Отображение текста хода',
+                  subtitle: 'Показывать текстовое описание шагов в матче',
+                  value: StorageService.showSpeechText,
+                  onChanged: (val) {
+                    setState(() {
+                      StorageService.showSpeechText = val;
+                      StorageService.syncWithDisk();
+                    });
+                  },
+                ),
+                const Divider(height: 1),
+                SwitchListenable(
                   title: 'Режим тестировщика',
                   subtitle: 'Включить подсказки реальных позиций',
                   value: StorageService.devModeActive,
@@ -1485,7 +1669,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         await prefs.clear();
                         await StorageService.loadData();
                         
-                        // Использование context.mounted защищает BuildContext от вызовов сквозь асинхронные задержки
                         if (context.mounted) {
                           Navigator.pop(context);
                           Navigator.pop(context);
@@ -1533,7 +1716,7 @@ class SwitchListenable extends StatelessWidget {
 }
 
 // =========================================================================
-// ЭКРАН 5: ПРОЦЕСС СЕССИИ ИГРЫ (ОБНОВЛЕННЫЙ ACTIONS FLOW)
+// ЭКРАН 5: ПРОЦЕСС СЕССИИ ИГРЫ
 // =========================================================================
 class GameScreen extends StatefulWidget {
   final DifficultyConfig config;
@@ -1560,12 +1743,10 @@ class _GameScreenState extends State<GameScreen> {
   bool isGameOver = false;
   bool isPerfect = false;
 
-  // Лог консоли разработчика
   List<String> devLogs = [];
 
-  // Супер-игра стейт
   bool superGameMode = false;
-  int superGameStep = 1; // 1 = Ищем объект 1, 2 = Ищем объект 2
+  int superGameStep = 1; 
   bool superGameFailed = false;
   bool superGameSuccess = false;
   List<int> tappedIndices = [];
@@ -1579,7 +1760,6 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   void _setupInitialGrid() {
-    // 1. Ставим препятствия
     obstacleCoordinates.clear();
     while (obstacleCoordinates.length < widget.config.obstaclesCount) {
       final p = Point(_random.nextInt(widget.config.gridSize), _random.nextInt(widget.config.gridSize));
@@ -1588,11 +1768,9 @@ class _GameScreenState extends State<GameScreen> {
       }
     }
 
-    // 2. Ставим Объекты
     objects.clear();
     final theme = getActiveTheme();
 
-    // Первый объект
     Point<int>? p1;
     while (p1 == null) {
       final p = Point(_random.nextInt(widget.config.gridSize), _random.nextInt(widget.config.gridSize));
@@ -1602,7 +1780,6 @@ class _GameScreenState extends State<GameScreen> {
     }
     objects.add(ObjectState(id: 1, x: p1.x, y: p1.y, emoji: theme.obj1.split(' ').first));
 
-    // Второй объект (если по условию их 2)
     if (widget.config.objectsCount > 1) {
       Point<int>? p2;
       while (p2 == null) {
@@ -1630,7 +1807,7 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   void _startMemorizationCountdown() {
-    TTSEngine.speak("Запомни расположение объектов на поле.");
+    VoiceService.speakStatic("memorize");
     Future.doWhile(() async {
       await Future.delayed(const Duration(seconds: 1));
       if (!mounted) return false;
@@ -1654,45 +1831,46 @@ class _GameScreenState extends State<GameScreen> {
       return;
     }
 
-    // Выбираем объект для хода
     final activeObj = objects[_random.nextInt(objects.length)];
-
-    // Генерируем сдвиг по правильной системе координат (без инверсии)
-    // 0 = Вверх, 1 = Вниз, 2 = Влево, 3 = Вправо
-    int direction = _random.nextInt(4);
-    int step = 1;
-    if (widget.config.maxStep > 1) {
-      step = _random.nextInt(widget.config.maxStep) + 1;
-    }
+    final theme = getActiveTheme();
+    String fullObjName = activeObj.id == 1 ? theme.obj1 : theme.obj2;
 
     int nextX = activeObj.x;
     int nextY = activeObj.y;
-    String directionStr = "";
+    
+    int stepX = 0;
+    int stepY = 0;
+    String dirX = "";
+    String dirY = "";
 
-    switch (direction) {
-      case 0: // Вверх
-        nextY = activeObj.y - step;
-        directionStr = "вверх";
-        break;
-      case 1: // Вниз
-        nextY = activeObj.y + step;
-        directionStr = "вниз";
-        break;
-      case 2: // Влево
-        nextX = activeObj.x - step;
-        directionStr = "влево";
-        break;
-      case 3: // Вправо
-        nextX = activeObj.x + step;
-        directionStr = "вправо";
-        break;
+    while (stepX == 0 && stepY == 0) {
+      stepX = _random.nextInt(widget.config.maxStep + 1);
+      stepY = _random.nextInt(widget.config.maxStep + 1);
     }
 
-    // Проверка условий коллизии / безопасности
+    if (stepX > 0) {
+      if (_random.nextBool()) {
+        nextX = activeObj.x - stepX;
+        dirX = "влево";
+      } else {
+        nextX = activeObj.x + stepX;
+        dirX = "вправо";
+      }
+    }
+
+    if (stepY > 0) {
+      if (_random.nextBool()) {
+        nextY = activeObj.y - stepY;
+        dirY = "вверх";
+      } else {
+        nextY = activeObj.y + stepY;
+        dirY = "вниз";
+      }
+    }
+
     bool isInside = nextX >= 0 && nextX < widget.config.gridSize && nextY >= 0 && nextY < widget.config.gridSize;
     bool landsOnObstacle = obstacleCoordinates.contains(Point(nextX, nextY));
 
-    // Наступил ли на другого персонажа в конце своего хода
     bool landsOnOtherObject = false;
     for (var o in objects) {
       if (o.id != activeObj.id && o.x == nextX && o.y == nextY) {
@@ -1702,35 +1880,35 @@ class _GameScreenState extends State<GameScreen> {
 
     bool isSafe = isInside && !landsOnObstacle && !landsOnOtherObject;
 
-    String speech = TTSEngine.generateLivelySpeech(activeObj.emoji, directionStr, step);
+    MoveSpeech speech = TTSEngine.generateMove(
+      rawName: fullObjName,
+      dirX: dirX,
+      stepX: stepX,
+      dirY: dirY,
+      stepY: stepY,
+    );
 
     setState(() {
       currentMove = PendingMove(
         objectId: activeObj.id,
         objectEmoji: activeObj.emoji,
-        directionText: directionStr,
-        step: step,
+        directionText: "${dirX.isNotEmpty ? '$dirX $stepX' : ''} ${dirY.isNotEmpty ? '$dirY $stepY' : ''}".trim(),
+        step: stepX + stepY,
         nextX: nextX,
         nextY: nextY,
         isSafe: isSafe,
-        speechText: speech,
+        speechText: speech.text,
+        speechClips: speech.clips,
       );
     });
 
-    _logDev("РАУНД $currentRound. Ход для ${activeObj.emoji} -> (${activeObj.x}, ${activeObj.y}) -> $directionStr на $step шаг. Цель: ($nextX, $nextY). Безопасен: $isSafe.");
-
-    TTSEngine.speak(speech);
+    _logDev("РАУНД $currentRound. Ход для ${activeObj.emoji} из (${activeObj.x}, ${activeObj.y}) -> Цель: ($nextX, $nextY). Безопасен: $isSafe.");
+    VoiceService.speakMove(speech);
   }
 
-  // =========================================================================
-  // ОБРАБОТКА ВЫБОРА ИГРОКА (КНОПКИ С УЧЕТОМ ИСПРАВЛЕНИЯ БАГА ТУПИКОВ)
-  // =========================================================================
   void _onPlayerDecision(bool playerSaysSafe) {
     if (currentMove == null) return;
 
-    // ИСПРАВЛЕНИЕ БАГА РЕНТГЕНА:
-    // Как только игрок нажимает на кнопку действия, мы немедленно выключаем рентген.
-    // Это не позволяет игроку увидеть, куда математически прыгнула фишка на следующем шаге.
     setState(() {
       xrayActive = false;
     });
@@ -1738,13 +1916,11 @@ class _GameScreenState extends State<GameScreen> {
     bool isCorrect = (playerSaysSafe == currentMove!.isSafe);
 
     if (isCorrect) {
-      // Игрок ответил правильно!
       int reward = widget.config.basePoints;
-      if (StorageService.isBlindModeGlobal) reward *= 2; // х2 за Blind Mode
+      if (StorageService.isBlindModeGlobal) reward *= 2; 
 
       setState(() {
         if (currentMove!.isSafe) {
-          // Ситуация А (Ход безопасен): Объект физически перемещается, увеличиваем раунд
           final activeObj = objects.firstWhere((o) => o.id == currentMove!.objectId);
           activeObj.x = currentMove!.nextX;
           activeObj.y = currentMove!.nextY;
@@ -1752,9 +1928,6 @@ class _GameScreenState extends State<GameScreen> {
           currentRound++;
           _logDev("УСПЕХ: Объект ${activeObj.emoji} перемещен на (${activeObj.x}, ${activeObj.y}). Раунд пройден.");
         } else {
-          // Ситуация Б (Ход опасен): Игрок нажал "Тупик!", предотвратил аварию.
-          // Фишка остается на месте, мы даем 50% награды за внимательность, 
-          // но раунд НЕ увеличиваем (генерируем новый ход для раунда)!
           coinsEarned += (reward ~/ 2);
           _logDev("УСПЕХ: Предотвращен тупик! Объект остался на месте. Генерируем новую команду для раунда $currentRound.");
         }
@@ -1762,9 +1935,7 @@ class _GameScreenState extends State<GameScreen> {
 
       _generateNextStep();
     } else {
-      // ОШИБКА ИГРОКА!
       if (StorageService.itemShieldCount > 0) {
-        // Срабатывает Щит!
         setState(() {
           StorageService.itemShieldCount--;
         });
@@ -1779,13 +1950,12 @@ class _GameScreenState extends State<GameScreen> {
         return;
       }
 
-      // Нет щитов — Конец игры
       _triggerGameOver();
     }
   }
 
   void _triggerGameOver() {
-    TTSEngine.speak("Ой! Вы ошиблись и объект попал в тупик.");
+    VoiceService.speakStatic("game_over");
     setState(() {
       isGameOver = true;
     });
@@ -1793,45 +1963,41 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   void _triggerPerfectFinish() {
-    TTSEngine.speak("Отличная работа! Идеальная сессия. Запуск супер-игры.");
+    VoiceService.speakStatic("perfect_finish");
     setState(() {
       superGameMode = true;
       tappedIndices.clear();
     });
   }
 
-  // =========================================================================
-  // СУПЕР ИГРА «СУПЕР-ТАП» ПОИСК ОБЪЕКТОВ
-  // =========================================================================
   void _onSuperGameCellTap(int index) {
     if (superGameFailed || superGameSuccess) return;
 
     int col = index % widget.config.gridSize;
     int row = index ~/ widget.config.gridSize;
 
-    // Проверяем ловушки (где стояли препятствия)
     bool clickedObstacle = obstacleCoordinates.contains(Point(col, row));
     if (clickedObstacle) {
       setState(() {
         superGameFailed = true;
         tappedIndices.add(index);
       });
-      TTSEngine.speak("Ловушка! Вы наступили на препятствие. Супер-игра окончена.");
-      StorageService.addSessionToHistory(coinsEarned, true); // Все равно заслужил идеальное прохождение
+      VoiceService.speakStatic("supergame_trap");
+      StorageService.addSessionToHistory(coinsEarned, true); 
       return;
     }
 
     if (superGameStep == 1) {
       final obj1 = objects[0];
       if (obj1.x == col && obj1.y == row) {
-        TTSEngine.speak("Правильно! Нашли первый объект.");
+        VoiceService.speakStatic("found_first");
         setState(() {
           tappedIndices.add(index);
           if (objects.length == 1) {
             superGameSuccess = true;
-            coinsEarned *= 2; // Удваиваем монеты за идеальный супер-тап
+            coinsEarned *= 2; 
           } else {
-            superGameStep = 2; // Переходим к поиску второго
+            superGameStep = 2; 
           }
         });
       } else {
@@ -1840,11 +2006,11 @@ class _GameScreenState extends State<GameScreen> {
     } else if (superGameStep == 2) {
       final obj2 = objects[1];
       if (obj2.x == col && obj2.y == row) {
-        TTSEngine.speak("Отлично! Нашли второй объект. Монеты удвоены!");
+        VoiceService.speakStatic("found_second");
         setState(() {
           tappedIndices.add(index);
           superGameSuccess = true;
-          coinsEarned *= 2; // Удваиваем монеты
+          coinsEarned *= 2; 
         });
       } else {
         _handleSuperGameMiss(index);
@@ -1857,7 +2023,7 @@ class _GameScreenState extends State<GameScreen> {
       superGameFailed = true;
       tappedIndices.add(index);
     });
-    TTSEngine.speak("Промах! Это была пустая ячейка.");
+    VoiceService.speakStatic("miss_empty");
     StorageService.addSessionToHistory(coinsEarned, true);
   }
 
@@ -1866,9 +2032,6 @@ class _GameScreenState extends State<GameScreen> {
     Navigator.pop(context);
   }
 
-  // =========================================================================
-  // РЕНТГЕН-ПОДСКАЗКА
-  // =========================================================================
   void _activateXray() {
     if (StorageService.itemXrayCount <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1883,7 +2046,7 @@ class _GameScreenState extends State<GameScreen> {
     });
 
     StorageService.syncWithDisk();
-    TTSEngine.speak("Рентген активирован на три секунды.");
+    VoiceService.speakStatic("xray_on");
 
     Future.delayed(const Duration(seconds: 3), () {
       if (mounted) {
@@ -1917,7 +2080,7 @@ class _GameScreenState extends State<GameScreen> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
-            TTSEngine.stop();
+            VoiceService.stop();
             Navigator.pop(context);
           },
         ),
@@ -1971,9 +2134,6 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-  // =========================================================================
-  // КОНСТРУКТОР СЕТКИ С ВАЛИДАЦИЕЙ ОТРИСОВКИ В DARK MODE
-  // =========================================================================
   Widget _buildGridArea(GameTheme activeTheme) {
     bool isBlind = StorageService.isBlindModeGlobal;
 
@@ -2000,14 +2160,13 @@ class _GameScreenState extends State<GameScreen> {
             itemCount: widget.config.gridSize * widget.config.gridSize,
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: widget.config.gridSize,
-              crossAxisSpacing: 6,
-              mainAxisSpacing: 6,
+              crossAxisSpacing: 4, // Уменьшено расстояние для поддержки сеток 10х10
+              mainAxisSpacing: 4,
             ),
             itemBuilder: (context, index) {
               int col = index % widget.config.gridSize;
               int row = index ~/ widget.config.gridSize;
 
-              // Проверка наличия элементов в ячейке
               bool isObstacle = obstacleCoordinates.contains(Point(col, row));
               ObjectState? activeObject;
               for (var o in objects) {
@@ -2016,67 +2175,60 @@ class _GameScreenState extends State<GameScreen> {
                 }
               }
 
-              // Стилизация границ контейнеров ячеек (Отрисовка в Dark Mode)
-              bool showGridBorders = !isBlind || isMemorizing || xrayActive || isGameOver;
+              bool showGridBorders = !isBlind || isMemorizing || xrayActive || isGameOver || superGameMode;
               Color cellBgColor = Colors.transparent;
 
               if (showGridBorders) {
-                // В темной теме преобразуем белый фон ячеек через прозрачность
                 cellBgColor = Theme.of(context).brightness == Brightness.dark
                     ? Colors.white.withValues(alpha: 0.06)
                     : Colors.black.withValues(alpha: 0.03);
               }
 
-              // Отрисовка контента
               Widget? cellContent;
 
               if (superGameMode) {
-                // Отрисовка для Супер-Игры
                 bool isTapped = tappedIndices.contains(index);
                 if (isTapped) {
                   if (isObstacle) {
                     cellBgColor = Colors.red.withValues(alpha: 0.3);
-                    cellContent = const Text('❌', style: TextStyle(fontSize: 22));
+                    cellContent = const Text('❌', style: TextStyle(fontSize: 16));
                   } else if (activeObject != null) {
                     cellBgColor = Colors.green.withValues(alpha: 0.3);
-                    cellContent = Text(activeObject.emoji, style: const TextStyle(fontSize: 24));
+                    cellContent = Text(activeObject.emoji, style: const TextStyle(fontSize: 18));
                   } else {
                     cellBgColor = Colors.red.withValues(alpha: 0.2);
-                    cellContent = const Text('💨', style: TextStyle(fontSize: 22));
+                    cellContent = const Text('💨', style: TextStyle(fontSize: 16));
                   }
                 }
               } else {
-                // Обычная сессия
                 if (isMemorizing || xrayActive || isGameOver) {
                   if (activeObject != null) {
-                    cellContent = Text(activeObject.emoji, style: const TextStyle(fontSize: 24));
+                    cellContent = Text(activeObject.emoji, style: const TextStyle(fontSize: 18));
                   } else if (isObstacle) {
-                    cellContent = Text(activeTheme.obstacle.split(' ').first, style: const TextStyle(fontSize: 24));
+                    cellContent = Text(activeTheme.obstacle.split(' ').first, style: const TextStyle(fontSize: 18));
                   }
                 } else if (StorageService.devModeActive) {
-                  // РЕЖИМ ТЕСТИРОВЩИКА: Полупрозрачное отображение позиций
                   if (activeObject != null) {
                     cellContent = Opacity(
                       opacity: 0.45,
                       child: Container(
                         decoration: BoxDecoration(
                           color: Colors.blue.withValues(alpha: 0.25),
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(6),
                         ),
                         alignment: Alignment.center,
-                        child: Text(activeObject.emoji, style: const TextStyle(fontSize: 20)),
+                        child: Text(activeObject.emoji, style: const TextStyle(fontSize: 14)),
                       ),
                     );
                   } else if (isObstacle) {
                     cellContent = Opacity(
                       opacity: 0.45,
-                      child: Text(activeTheme.obstacle.split(' ').first, style: const TextStyle(fontSize: 20)),
+                      child: Text(activeTheme.obstacle.split(' ').first, style: const TextStyle(fontSize: 14)),
                     );
                   }
                 }
               }
 
-              // Использование GestureDetector позволяет обрабатывать тапы по ячейкам в фазе Супер-Игры
               return GestureDetector(
                 onTap: () {
                   if (superGameMode) {
@@ -2087,7 +2239,7 @@ class _GameScreenState extends State<GameScreen> {
                   duration: const Duration(milliseconds: 300),
                   decoration: BoxDecoration(
                     color: cellBgColor,
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(6),
                     border: Border.all(
                       color: showGridBorders
                           ? activeTheme.primaryColor.withValues(alpha: 0.15)
@@ -2104,9 +2256,6 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-  // =========================================================================
-  // ПАНЕЛЬ С ТЕКСТОМ И КНОПКАМИ ДЕЙСТВИЯ (ACTION SYSTEM)
-  // =========================================================================
   Widget _buildControlsPanel(GameTheme activeTheme) {
     if (isGameOver) {
       return Padding(
@@ -2197,36 +2346,31 @@ class _GameScreenState extends State<GameScreen> {
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.orange),
             ),
-            const SizedBox(height: 10),
-            const Text(
-              'Запомните, где стоят объекты и преграды!',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey, fontSize: 13),
-            ),
           ] else ...[
-            // Инструкция и зачитанный диктором шаг
-            Card(
-              elevation: 1,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              child: Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: Column(
-                  children: [
-                    const Text(
-                      'Диктор зачитал ход:',
-                      style: TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      currentMove?.speechText ?? "Генерация...",
-                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: activeTheme.primaryColor),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
+            if (StorageService.showSpeechText)
+              Card(
+                elevation: 1,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                child: Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Column(
+                    children: [
+                      const Text(
+                        'Диктор зачитал ход:',
+                        style: TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        currentMove?.speechText ?? "Генерация...",
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: activeTheme.primaryColor),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
             const SizedBox(height: 14),
+            // ИЗМЕНЕНО: Названия кнопок переименованы в "Дальше" и "Стоп"
             Row(
               children: [
                 Expanded(
@@ -2238,9 +2382,9 @@ class _GameScreenState extends State<GameScreen> {
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                       ),
                       onPressed: () => _onPlayerDecision(true),
-                      icon: const Icon(Icons.check_circle_outline, color: Colors.white),
+                      icon: const Icon(Icons.arrow_forward_rounded, color: Colors.white),
                       label: const Text(
-                        'Путь чист',
+                        'Дальше',
                         style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
                       ),
                     ),
@@ -2256,9 +2400,9 @@ class _GameScreenState extends State<GameScreen> {
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                       ),
                       onPressed: () => _onPlayerDecision(false),
-                      icon: const Icon(Icons.warning_amber_rounded, color: Colors.white),
+                      icon: const Icon(Icons.front_hand_rounded, color: Colors.white),
                       label: const Text(
-                        'Тупик!',
+                        'Стоп',
                         style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
                       ),
                     ),
@@ -2283,7 +2427,6 @@ class _GameScreenState extends State<GameScreen> {
                 ),
             ],
           ),
-          // Окно логов консоли в режиме тестировщика
           if (StorageService.devModeActive && devLogs.isNotEmpty) ...[
             const SizedBox(height: 10),
             Container(

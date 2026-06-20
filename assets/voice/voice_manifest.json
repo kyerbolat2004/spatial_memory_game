@@ -1,0 +1,732 @@
+{
+  "version": 1,
+  "note": "Сгенерировано tool/generate_voice_lines.dart. Имена файлов менять нельзя.",
+  "clips": [
+    {
+      "id": "memorize",
+      "file": "memorize.mp3",
+      "text": "Запомни расположение объектов на поле.",
+      "group": "static"
+    },
+    {
+      "id": "game_over",
+      "file": "game_over.mp3",
+      "text": "Ой! Вы ошиблись и объект попал в тупик.",
+      "group": "static"
+    },
+    {
+      "id": "perfect_finish",
+      "file": "perfect_finish.mp3",
+      "text": "Отличная работа! Идеальная сессия. Запуск супер-игры.",
+      "group": "static"
+    },
+    {
+      "id": "supergame_trap",
+      "file": "supergame_trap.mp3",
+      "text": "Ловушка! Вы наступили на препятствие. Супер-игра окончена.",
+      "group": "static"
+    },
+    {
+      "id": "found_first",
+      "file": "found_first.mp3",
+      "text": "Правильно! Нашли первый объект.",
+      "group": "static"
+    },
+    {
+      "id": "found_second",
+      "file": "found_second.mp3",
+      "text": "Отлично! Нашли второй объект. Монеты удвоены!",
+      "group": "static"
+    },
+    {
+      "id": "miss_empty",
+      "file": "miss_empty.mp3",
+      "text": "Промах! Это была пустая ячейка.",
+      "group": "static"
+    },
+    {
+      "id": "xray_on",
+      "file": "xray_on.mp3",
+      "text": "Рентген активирован на три секунды.",
+      "group": "static"
+    },
+    {
+      "id": "intro_mukha_hochet_poletet",
+      "file": "intro_mukha_hochet_poletet.mp3",
+      "text": "Муха хочет полететь на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_mukha_hochet_uletet",
+      "file": "intro_mukha_hochet_uletet.mp3",
+      "text": "Муха хочет улететь на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_mukha_planiruet_poletet",
+      "file": "intro_mukha_planiruet_poletet.mp3",
+      "text": "Муха планирует полететь на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_mukha_planiruet_uletet",
+      "file": "intro_mukha_planiruet_uletet.mp3",
+      "text": "Муха планирует улететь на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_mukha_sobiraetsya_poletet",
+      "file": "intro_mukha_sobiraetsya_poletet.mp3",
+      "text": "Муха собирается полететь на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_mukha_sobiraetsya_uletet",
+      "file": "intro_mukha_sobiraetsya_uletet.mp3",
+      "text": "Муха собирается улететь на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_mukha_probuet_poletet",
+      "file": "intro_mukha_probuet_poletet.mp3",
+      "text": "Муха пробует полететь на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_mukha_probuet_uletet",
+      "file": "intro_mukha_probuet_uletet.mp3",
+      "text": "Муха пробует улететь на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_zhuk_hochet_propolzti",
+      "file": "intro_zhuk_hochet_propolzti.mp3",
+      "text": "Жук хочет проползти на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_zhuk_hochet_poyti",
+      "file": "intro_zhuk_hochet_poyti.mp3",
+      "text": "Жук хочет пойти на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_zhuk_planiruet_propolzti",
+      "file": "intro_zhuk_planiruet_propolzti.mp3",
+      "text": "Жук планирует проползти на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_zhuk_planiruet_poyti",
+      "file": "intro_zhuk_planiruet_poyti.mp3",
+      "text": "Жук планирует пойти на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_zhuk_sobiraetsya_propolzti",
+      "file": "intro_zhuk_sobiraetsya_propolzti.mp3",
+      "text": "Жук собирается проползти на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_zhuk_sobiraetsya_poyti",
+      "file": "intro_zhuk_sobiraetsya_poyti.mp3",
+      "text": "Жук собирается пойти на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_zhuk_probuet_propolzti",
+      "file": "intro_zhuk_probuet_propolzti.mp3",
+      "text": "Жук пробует проползти на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_zhuk_probuet_poyti",
+      "file": "intro_zhuk_probuet_poyti.mp3",
+      "text": "Жук пробует пойти на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_dron_hochet_poletet",
+      "file": "intro_dron_hochet_poletet.mp3",
+      "text": "Дрон хочет полететь на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_dron_hochet_uletet",
+      "file": "intro_dron_hochet_uletet.mp3",
+      "text": "Дрон хочет улететь на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_dron_planiruet_poletet",
+      "file": "intro_dron_planiruet_poletet.mp3",
+      "text": "Дрон планирует полететь на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_dron_planiruet_uletet",
+      "file": "intro_dron_planiruet_uletet.mp3",
+      "text": "Дрон планирует улететь на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_dron_sobiraetsya_poletet",
+      "file": "intro_dron_sobiraetsya_poletet.mp3",
+      "text": "Дрон собирается полететь на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_dron_sobiraetsya_uletet",
+      "file": "intro_dron_sobiraetsya_uletet.mp3",
+      "text": "Дрон собирается улететь на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_dron_probuet_poletet",
+      "file": "intro_dron_probuet_poletet.mp3",
+      "text": "Дрон пробует полететь на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_dron_probuet_uletet",
+      "file": "intro_dron_probuet_uletet.mp3",
+      "text": "Дрон пробует улететь на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_robot_hochet_dvinutsya",
+      "file": "intro_robot_hochet_dvinutsya.mp3",
+      "text": "Робот хочет двинуться на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_robot_hochet_peremestitsya",
+      "file": "intro_robot_hochet_peremestitsya.mp3",
+      "text": "Робот хочет переместиться на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_robot_planiruet_dvinutsya",
+      "file": "intro_robot_planiruet_dvinutsya.mp3",
+      "text": "Робот планирует двинуться на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_robot_planiruet_peremestitsya",
+      "file": "intro_robot_planiruet_peremestitsya.mp3",
+      "text": "Робот планирует переместиться на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_robot_sobiraetsya_dvinutsya",
+      "file": "intro_robot_sobiraetsya_dvinutsya.mp3",
+      "text": "Робот собирается двинуться на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_robot_sobiraetsya_peremestitsya",
+      "file": "intro_robot_sobiraetsya_peremestitsya.mp3",
+      "text": "Робот собирается переместиться на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_robot_probuet_dvinutsya",
+      "file": "intro_robot_probuet_dvinutsya.mp3",
+      "text": "Робот пробует двинуться на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_robot_probuet_peremestitsya",
+      "file": "intro_robot_probuet_peremestitsya.mp3",
+      "text": "Робот пробует переместиться на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_rybka_hochet_poplyt",
+      "file": "intro_rybka_hochet_poplyt.mp3",
+      "text": "Рыбка хочет поплыть на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_rybka_hochet_uplyt",
+      "file": "intro_rybka_hochet_uplyt.mp3",
+      "text": "Рыбка хочет уплыть на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_rybka_planiruet_poplyt",
+      "file": "intro_rybka_planiruet_poplyt.mp3",
+      "text": "Рыбка планирует поплыть на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_rybka_planiruet_uplyt",
+      "file": "intro_rybka_planiruet_uplyt.mp3",
+      "text": "Рыбка планирует уплыть на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_rybka_sobiraetsya_poplyt",
+      "file": "intro_rybka_sobiraetsya_poplyt.mp3",
+      "text": "Рыбка собирается поплыть на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_rybka_sobiraetsya_uplyt",
+      "file": "intro_rybka_sobiraetsya_uplyt.mp3",
+      "text": "Рыбка собирается уплыть на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_rybka_probuet_poplyt",
+      "file": "intro_rybka_probuet_poplyt.mp3",
+      "text": "Рыбка пробует поплыть на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_rybka_probuet_uplyt",
+      "file": "intro_rybka_probuet_uplyt.mp3",
+      "text": "Рыбка пробует уплыть на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_osminog_hochet_poplyt",
+      "file": "intro_osminog_hochet_poplyt.mp3",
+      "text": "Осьминог хочет поплыть на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_osminog_hochet_uplyt",
+      "file": "intro_osminog_hochet_uplyt.mp3",
+      "text": "Осьминог хочет уплыть на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_osminog_planiruet_poplyt",
+      "file": "intro_osminog_planiruet_poplyt.mp3",
+      "text": "Осьминог планирует поплыть на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_osminog_planiruet_uplyt",
+      "file": "intro_osminog_planiruet_uplyt.mp3",
+      "text": "Осьминог планирует уплыть на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_osminog_sobiraetsya_poplyt",
+      "file": "intro_osminog_sobiraetsya_poplyt.mp3",
+      "text": "Осьминог собирается поплыть на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_osminog_sobiraetsya_uplyt",
+      "file": "intro_osminog_sobiraetsya_uplyt.mp3",
+      "text": "Осьминог собирается уплыть на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_osminog_probuet_poplyt",
+      "file": "intro_osminog_probuet_poplyt.mp3",
+      "text": "Осьминог пробует поплыть на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_osminog_probuet_uplyt",
+      "file": "intro_osminog_probuet_uplyt.mp3",
+      "text": "Осьминог пробует уплыть на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_zvezda_hochet_poletet",
+      "file": "intro_zvezda_hochet_poletet.mp3",
+      "text": "Звезда хочет полететь на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_zvezda_hochet_uletet",
+      "file": "intro_zvezda_hochet_uletet.mp3",
+      "text": "Звезда хочет улететь на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_zvezda_planiruet_poletet",
+      "file": "intro_zvezda_planiruet_poletet.mp3",
+      "text": "Звезда планирует полететь на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_zvezda_planiruet_uletet",
+      "file": "intro_zvezda_planiruet_uletet.mp3",
+      "text": "Звезда планирует улететь на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_zvezda_sobiraetsya_poletet",
+      "file": "intro_zvezda_sobiraetsya_poletet.mp3",
+      "text": "Звезда собирается полететь на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_zvezda_sobiraetsya_uletet",
+      "file": "intro_zvezda_sobiraetsya_uletet.mp3",
+      "text": "Звезда собирается улететь на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_zvezda_probuet_poletet",
+      "file": "intro_zvezda_probuet_poletet.mp3",
+      "text": "Звезда пробует полететь на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_zvezda_probuet_uletet",
+      "file": "intro_zvezda_probuet_uletet.mp3",
+      "text": "Звезда пробует улететь на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_raketa_hochet_poletet",
+      "file": "intro_raketa_hochet_poletet.mp3",
+      "text": "Ракета хочет полететь на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_raketa_hochet_uletet",
+      "file": "intro_raketa_hochet_uletet.mp3",
+      "text": "Ракета хочет улететь на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_raketa_planiruet_poletet",
+      "file": "intro_raketa_planiruet_poletet.mp3",
+      "text": "Ракета планирует полететь на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_raketa_planiruet_uletet",
+      "file": "intro_raketa_planiruet_uletet.mp3",
+      "text": "Ракета планирует улететь на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_raketa_sobiraetsya_poletet",
+      "file": "intro_raketa_sobiraetsya_poletet.mp3",
+      "text": "Ракета собирается полететь на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_raketa_sobiraetsya_uletet",
+      "file": "intro_raketa_sobiraetsya_uletet.mp3",
+      "text": "Ракета собирается улететь на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_raketa_probuet_poletet",
+      "file": "intro_raketa_probuet_poletet.mp3",
+      "text": "Ракета пробует полететь на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_raketa_probuet_uletet",
+      "file": "intro_raketa_probuet_uletet.mp3",
+      "text": "Ракета пробует улететь на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_koshka_hochet_poyti",
+      "file": "intro_koshka_hochet_poyti.mp3",
+      "text": "Кошка хочет пойти на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_koshka_hochet_probezhat",
+      "file": "intro_koshka_hochet_probezhat.mp3",
+      "text": "Кошка хочет пробежать на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_koshka_planiruet_poyti",
+      "file": "intro_koshka_planiruet_poyti.mp3",
+      "text": "Кошка планирует пойти на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_koshka_planiruet_probezhat",
+      "file": "intro_koshka_planiruet_probezhat.mp3",
+      "text": "Кошка планирует пробежать на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_koshka_sobiraetsya_poyti",
+      "file": "intro_koshka_sobiraetsya_poyti.mp3",
+      "text": "Кошка собирается пойти на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_koshka_sobiraetsya_probezhat",
+      "file": "intro_koshka_sobiraetsya_probezhat.mp3",
+      "text": "Кошка собирается пробежать на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_koshka_probuet_poyti",
+      "file": "intro_koshka_probuet_poyti.mp3",
+      "text": "Кошка пробует пойти на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_koshka_probuet_probezhat",
+      "file": "intro_koshka_probuet_probezhat.mp3",
+      "text": "Кошка пробует пробежать на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_sokol_hochet_poletet",
+      "file": "intro_sokol_hochet_poletet.mp3",
+      "text": "Сокол хочет полететь на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_sokol_hochet_uletet",
+      "file": "intro_sokol_hochet_uletet.mp3",
+      "text": "Сокол хочет улететь на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_sokol_planiruet_poletet",
+      "file": "intro_sokol_planiruet_poletet.mp3",
+      "text": "Сокол планирует полететь на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_sokol_planiruet_uletet",
+      "file": "intro_sokol_planiruet_uletet.mp3",
+      "text": "Сокол планирует улететь на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_sokol_sobiraetsya_poletet",
+      "file": "intro_sokol_sobiraetsya_poletet.mp3",
+      "text": "Сокол собирается полететь на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_sokol_sobiraetsya_uletet",
+      "file": "intro_sokol_sobiraetsya_uletet.mp3",
+      "text": "Сокол собирается улететь на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_sokol_probuet_poletet",
+      "file": "intro_sokol_probuet_poletet.mp3",
+      "text": "Сокол пробует полететь на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_sokol_probuet_uletet",
+      "file": "intro_sokol_probuet_uletet.mp3",
+      "text": "Сокол пробует улететь на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_drakon_hochet_poletet",
+      "file": "intro_drakon_hochet_poletet.mp3",
+      "text": "Дракон хочет полететь на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_drakon_hochet_uletet",
+      "file": "intro_drakon_hochet_uletet.mp3",
+      "text": "Дракон хочет улететь на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_drakon_planiruet_poletet",
+      "file": "intro_drakon_planiruet_poletet.mp3",
+      "text": "Дракон планирует полететь на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_drakon_planiruet_uletet",
+      "file": "intro_drakon_planiruet_uletet.mp3",
+      "text": "Дракон планирует улететь на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_drakon_sobiraetsya_poletet",
+      "file": "intro_drakon_sobiraetsya_poletet.mp3",
+      "text": "Дракон собирается полететь на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_drakon_sobiraetsya_uletet",
+      "file": "intro_drakon_sobiraetsya_uletet.mp3",
+      "text": "Дракон собирается улететь на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_drakon_probuet_poletet",
+      "file": "intro_drakon_probuet_poletet.mp3",
+      "text": "Дракон пробует полететь на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_drakon_probuet_uletet",
+      "file": "intro_drakon_probuet_uletet.mp3",
+      "text": "Дракон пробует улететь на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_edinorog_hochet_poyti",
+      "file": "intro_edinorog_hochet_poyti.mp3",
+      "text": "Единорог хочет пойти на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_edinorog_hochet_uskakat",
+      "file": "intro_edinorog_hochet_uskakat.mp3",
+      "text": "Единорог хочет ускакать на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_edinorog_planiruet_poyti",
+      "file": "intro_edinorog_planiruet_poyti.mp3",
+      "text": "Единорог планирует пойти на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_edinorog_planiruet_uskakat",
+      "file": "intro_edinorog_planiruet_uskakat.mp3",
+      "text": "Единорог планирует ускакать на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_edinorog_sobiraetsya_poyti",
+      "file": "intro_edinorog_sobiraetsya_poyti.mp3",
+      "text": "Единорог собирается пойти на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_edinorog_sobiraetsya_uskakat",
+      "file": "intro_edinorog_sobiraetsya_uskakat.mp3",
+      "text": "Единорог собирается ускакать на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_edinorog_probuet_poyti",
+      "file": "intro_edinorog_probuet_poyti.mp3",
+      "text": "Единорог пробует пойти на",
+      "group": "intro"
+    },
+    {
+      "id": "intro_edinorog_probuet_uskakat",
+      "file": "intro_edinorog_probuet_uskakat.mp3",
+      "text": "Единорог пробует ускакать на",
+      "group": "intro"
+    },
+    {
+      "id": "motion_1_vlevo",
+      "file": "motion_1_vlevo.mp3",
+      "text": "одну клетку влево",
+      "group": "motion"
+    },
+    {
+      "id": "motion_1_vpravo",
+      "file": "motion_1_vpravo.mp3",
+      "text": "одну клетку вправо",
+      "group": "motion"
+    },
+    {
+      "id": "motion_1_vverh",
+      "file": "motion_1_vverh.mp3",
+      "text": "одну клетку вверх",
+      "group": "motion"
+    },
+    {
+      "id": "motion_1_vniz",
+      "file": "motion_1_vniz.mp3",
+      "text": "одну клетку вниз",
+      "group": "motion"
+    },
+    {
+      "id": "motion_2_vlevo",
+      "file": "motion_2_vlevo.mp3",
+      "text": "две клетки влево",
+      "group": "motion"
+    },
+    {
+      "id": "motion_2_vpravo",
+      "file": "motion_2_vpravo.mp3",
+      "text": "две клетки вправо",
+      "group": "motion"
+    },
+    {
+      "id": "motion_2_vverh",
+      "file": "motion_2_vverh.mp3",
+      "text": "две клетки вверх",
+      "group": "motion"
+    },
+    {
+      "id": "motion_2_vniz",
+      "file": "motion_2_vniz.mp3",
+      "text": "две клетки вниз",
+      "group": "motion"
+    },
+    {
+      "id": "motion_3_vlevo",
+      "file": "motion_3_vlevo.mp3",
+      "text": "три клетки влево",
+      "group": "motion"
+    },
+    {
+      "id": "motion_3_vpravo",
+      "file": "motion_3_vpravo.mp3",
+      "text": "три клетки вправо",
+      "group": "motion"
+    },
+    {
+      "id": "motion_3_vverh",
+      "file": "motion_3_vverh.mp3",
+      "text": "три клетки вверх",
+      "group": "motion"
+    },
+    {
+      "id": "motion_3_vniz",
+      "file": "motion_3_vniz.mp3",
+      "text": "три клетки вниз",
+      "group": "motion"
+    },
+    {
+      "id": "motion_4_vlevo",
+      "file": "motion_4_vlevo.mp3",
+      "text": "четыре клетки влево",
+      "group": "motion"
+    },
+    {
+      "id": "motion_4_vpravo",
+      "file": "motion_4_vpravo.mp3",
+      "text": "четыре клетки вправо",
+      "group": "motion"
+    },
+    {
+      "id": "motion_4_vverh",
+      "file": "motion_4_vverh.mp3",
+      "text": "четыре клетки вверх",
+      "group": "motion"
+    },
+    {
+      "id": "motion_4_vniz",
+      "file": "motion_4_vniz.mp3",
+      "text": "четыре клетки вниз",
+      "group": "motion"
+    },
+    {
+      "id": "connector_i_na",
+      "file": "connector_i_na.mp3",
+      "text": "и на",
+      "group": "connector"
+    }
+  ]
+}
