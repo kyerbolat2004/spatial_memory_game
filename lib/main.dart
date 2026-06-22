@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_tts/flutter_tts.dart';
-import 'package:audioplayers/audioplayers.dart' show AudioPlayer, AssetSource;
+import 'package:audioplayers/audioplayers.dart' show AudioPlayer, AssetSource, ReleaseMode;
 import 'package:audio_session/audio_session.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -679,6 +679,9 @@ class VoiceService {
 
   static Future<void> init() async {
     await TTSEngine.init();
+    // Держим нативный плеер «живым» между клипами — меньше задержка
+    // на старте следующего клипа, речь звучит плавнее.
+    await _player.setReleaseMode(ReleaseMode.stop);
     // Проверяем, добавлен ли пакет нейро-озвучки. Если файлов ещё нет —
     // работаем на системном голосе, приложение не ломается.
     try {
@@ -712,8 +715,8 @@ class VoiceService {
     await TTSEngine.stop();
     try {
       await _player.stop();
+      await _player.setVolume(TTSEngine.volume);
       for (final id in clipIds) {
-        await _player.setVolume(TTSEngine.volume);
         await _player.play(AssetSource('voice/$id.mp3'));
         await _player.onPlayerComplete.first;
       }
