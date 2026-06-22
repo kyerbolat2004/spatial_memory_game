@@ -1,10 +1,13 @@
+import 'dart:io';
 import 'dart:math';
 import 'dart:convert';
+import 'dart:typed_data' show BytesBuilder;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_tts/flutter_tts.dart';
-import 'package:audioplayers/audioplayers.dart' show AudioPlayer, AssetSource, ReleaseMode;
+import 'package:audioplayers/audioplayers.dart' show AudioPlayer, DeviceFileSource, ReleaseMode;
 import 'package:audio_session/audio_session.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // Глобальный уведомитель для смены темы приложения
@@ -707,6 +710,8 @@ class VoiceService {
     await _speak(move.clips, move.text);
   }
 
+  static int _seq = 0;
+
   static Future<void> _speak(List<String> clipIds, String fallbackText) async {
     if (!_neuralReady) {
       await TTSEngine.speak(fallbackText);
@@ -715,13 +720,22 @@ class VoiceService {
     await TTSEngine.stop();
     try {
       await _player.stop();
-      await _player.setVolume(TTSEngine.volume);
+      // Склеиваем нужные клипы в один временный файл и проигрываем одним
+      // воспроизведением — между «...пойти на», «одну клетку вверх», «и на»,
+      // «три клетки влево» нет паузы плеера на подготовку каждого файла.
+      final builder = BytesBuilder();
       for (final id in clipIds) {
-        await _player.play(AssetSource('voice/$id.mp3'));
-        await _player.onPlayerComplete.first;
+        final data = await rootBundle.load('assets/voice/$id.mp3');
+        builder.add(data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes));
       }
+      final dir = await getTemporaryDirectory();
+      // ротация имени, чтобы не упереться в блокировку предыдущего файла
+      final path = '${dir.path}/mf_phrase_${_seq++ % 3}.mp3';
+      await File(path).writeAsBytes(builder.toBytes(), flush: true);
+      await _player.setVolume(TTSEngine.volume);
+      await _player.play(DeviceFileSource(path));
     } catch (e) {
-      debugPrint("VoiceService: клип не найден ($e), откат на TTS");
+      debugPrint("VoiceService: ошибка склейки/воспроизведения ($e), откат на TTS");
       await TTSEngine.speak(fallbackText);
     }
   }
