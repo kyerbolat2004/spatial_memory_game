@@ -2883,14 +2883,26 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   // Полноэкранное полотно режима «пустой экран»: тёмная тема — чёрное,
-  // светлая — серое. Вся область под верхней полосой (с кнопкой «назад»)
-  // разделена на 2 кликабельные зоны: левая = «Дальше», правая = «Стоп».
-  // Сами кнопки центрированы в зонах и сохраняют прежний размер; нажать
-  // можно в любом месте своей половины.
+  // светлая — серое.
+  //  • Горизонтально (ландшафт): область под верхней полосой делится на 2
+  //    кликабельные зоны (левая = «Дальше», правая = «Стоп»), кнопки по центру.
+  //  • Вертикально (портрет): как было раньше — кнопки внизу экрана.
   Widget _buildEmptyRoundsBody() {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
     final Color canvasColor = isDark ? Colors.black : const Color(0xFF9E9E9E);
 
+    Widget backButton() => IconButton(
+      icon: Icon(
+        Icons.arrow_back,
+        color: isDark ? Colors.white54 : Colors.black54,
+      ),
+      onPressed: () {
+        VoiceService.stop();
+        Navigator.pop(context);
+      },
+    );
+
+    // Ландшафт: половина экрана — одна большая кликабельная зона.
     Widget tapZone({
       required Color color,
       required IconData icon,
@@ -2932,50 +2944,113 @@ class _GameScreenState extends State<GameScreen> {
       );
     }
 
+    // Портрет: прежняя кнопка (растянута по половине ширины, внизу экрана).
+    Widget bottomButton({
+      required Color color,
+      required IconData icon,
+      required String label,
+      required VoidCallback onPressed,
+    }) {
+      return Expanded(
+        child: SizedBox(
+          height: 56,
+          child: ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: color,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            onPressed: onPressed,
+            icon: Icon(icon, color: Colors.white),
+            label: Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     return Container(
       width: double.infinity,
       height: double.infinity,
       color: canvasColor,
       child: SafeArea(
-        child: Column(
-          children: [
-            // Верхняя полоса с кнопкой выхода — НЕ входит в зоны нажатия.
-            SizedBox(
-              height: 48,
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: IconButton(
-                  icon: Icon(
-                    Icons.arrow_back,
-                    color: isDark ? Colors.white54 : Colors.black54,
-                  ),
-                  onPressed: () {
-                    VoiceService.stop();
-                    Navigator.pop(context);
-                  },
-                ),
-              ),
-            ),
-            // Две кликабельные зоны на весь оставшийся экран.
-            Expanded(
-              child: Row(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final bool isLandscape = constraints.maxWidth > constraints.maxHeight;
+
+            if (isLandscape) {
+              // Зоны на весь экран только в горизонтальном режиме.
+              return Column(
                 children: [
-                  tapZone(
-                    color: Colors.green,
-                    icon: Icons.arrow_forward_rounded,
-                    label: 'Дальше',
-                    onPressed: () => _onPlayerDecision(true),
+                  // Верхняя полоса с кнопкой выхода — НЕ входит в зоны нажатия.
+                  SizedBox(
+                    height: 48,
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: backButton(),
+                    ),
                   ),
-                  tapZone(
-                    color: Colors.red,
-                    icon: Icons.front_hand_rounded,
-                    label: 'Стоп',
-                    onPressed: () => _onPlayerDecision(false),
+                  Expanded(
+                    child: Row(
+                      children: [
+                        tapZone(
+                          color: Colors.green,
+                          icon: Icons.arrow_forward_rounded,
+                          label: 'Дальше',
+                          onPressed: () => _onPlayerDecision(true),
+                        ),
+                        tapZone(
+                          color: Colors.red,
+                          icon: Icons.front_hand_rounded,
+                          label: 'Стоп',
+                          onPressed: () => _onPlayerDecision(false),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
-              ),
-            ),
-          ],
+              );
+            }
+
+            // Портрет — как было: стрелка сверху-слева, кнопки внизу.
+            return Stack(
+              children: [
+                Align(alignment: Alignment.topLeft, child: backButton()),
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      const Spacer(),
+                      Row(
+                        children: [
+                          bottomButton(
+                            color: Colors.green,
+                            icon: Icons.arrow_forward_rounded,
+                            label: 'Дальше',
+                            onPressed: () => _onPlayerDecision(true),
+                          ),
+                          const SizedBox(width: 12),
+                          bottomButton(
+                            color: Colors.red,
+                            icon: Icons.front_hand_rounded,
+                            label: 'Стоп',
+                            onPressed: () => _onPlayerDecision(false),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
