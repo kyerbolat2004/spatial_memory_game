@@ -252,6 +252,10 @@ class StorageService {
   // «Дальше»/«Стоп». Включён по умолчанию.
   static bool emptyScreenMode = true;
 
+  // Голос диктора: false — мужской (assets/voice/), true — женский
+  // (assets/voice/female/). По умолчанию мужской.
+  static bool voiceFemale = false;
+
   static int activeDifficulty = 1;
 
   // Пользовательская настройка количества объектов/преград на уровень.
@@ -284,6 +288,7 @@ class StorageService {
     devModeActive = prefs.getBool('devModeActive') ?? false;
     showSpeechText = prefs.getBool('showSpeechText') ?? false;
     emptyScreenMode = prefs.getBool('emptyScreenMode') ?? true;
+    voiceFemale = prefs.getBool('voiceFemale') ?? false;
 
     unlockedDifficulties =
         (prefs.getStringList('unlockedDifficulties') ?? ['1'])
@@ -370,6 +375,7 @@ class StorageService {
     await prefs.setBool('devModeActive', devModeActive);
     await prefs.setBool('showSpeechText', showSpeechText);
     await prefs.setBool('emptyScreenMode', emptyScreenMode);
+    await prefs.setBool('voiceFemale', voiceFemale);
 
     await prefs.setStringList(
       'unlockedDifficulties',
@@ -717,6 +723,8 @@ class TTSEngine {
   static Future<void> speak(String text) async {
     await _flutterTts.stop();
     await _flutterTts.setVolume(volume);
+    // Системный откат тоже учитывает выбранный пол голоса: женский — выше тоном.
+    await _flutterTts.setPitch(StorageService.voiceFemale ? 1.5 : 1.0);
     await _flutterTts.speak(text);
   }
 
@@ -799,13 +807,23 @@ class VoiceService {
   };
 
   static Future<ByteData> _loadClip(String id) async {
-    try {
-      return await rootBundle.load('assets/voice/$id.mp3');
-    } catch (e) {
-      final fb = _clipFallback[id];
-      if (fb == null) rethrow;
-      return await rootBundle.load('assets/voice/$fb.mp3');
+    final String dir = StorageService.voiceFemale ? 'female/' : '';
+    final String? fb = _clipFallback[id];
+    // Порядок поиска: выбранный голос -> подмена клипа в выбранном голосе ->
+    // мужской (если женский ещё не записан) -> подмена в мужском.
+    final candidates = <String>[
+      'assets/voice/$dir$id.mp3',
+      if (fb != null) 'assets/voice/$dir$fb.mp3',
+      if (dir.isNotEmpty) 'assets/voice/$id.mp3',
+      if (dir.isNotEmpty && fb != null) 'assets/voice/$fb.mp3',
+    ];
+    for (final path in candidates) {
+      try {
+        return await rootBundle.load(path);
+      } catch (_) {}
     }
+    // Ничего не нашли — бросаем, чтобы сработал откат на системный голос.
+    return await rootBundle.load(candidates.first);
   }
 
   static Future<void> init() async {
@@ -2232,6 +2250,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 const Divider(height: 1),
                 SwitchListenable(
+                  title: 'Женский голос диктора',
+                  subtitle: 'Переключить озвучку: выкл — мужской, вкл — женский',
+                  value: StorageService.voiceFemale,
+                  onChanged: (val) {
+                    setState(() {
+                      StorageService.voiceFemale = val;
+                      StorageService.syncWithDisk();
+                      VoiceService.stop();
+                    });
+                  },
+                ),
+                const Divider(height: 1),
+                SwitchListenable(
                   title: 'Режим тестировщика',
                   subtitle: 'Включить подсказки реальных позиций',
                   value: StorageService.devModeActive,
@@ -2852,35 +2883,48 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   // Полноэкранное полотно режима «пустой экран»: тёмная тема — чёрное,
-  // светлая — серое. Внизу только кнопки «Дальше»/«Стоп», больше ничего.
+  // светлая — серое. Вся область под верхней полосой (с кнопкой «назад»)
+  // разделена на 2 кликабельные зоны: левая = «Дальше», правая = «Стоп».
+  // Сами кнопки центрированы в зонах и сохраняют прежний размер; нажать
+  // можно в любом месте своей половины.
   Widget _buildEmptyRoundsBody() {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
     final Color canvasColor = isDark ? Colors.black : const Color(0xFF9E9E9E);
 
-    Widget actionButton({
+    Widget tapZone({
       required Color color,
       required IconData icon,
       required String label,
       required VoidCallback onPressed,
     }) {
       return Expanded(
-        child: SizedBox(
-          height: 56,
-          child: ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: color,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque, // ловим тап по всей зоне
+          onTap: onPressed,
+          child: Container(
+            color: color.withValues(alpha: 0.14), // лёгкая подсветка половины
+            alignment: Alignment.center,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: color,
+                minimumSize: const Size(150, 56),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 22,
+                  vertical: 12,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
               ),
-            ),
-            onPressed: onPressed,
-            icon: Icon(icon, color: Colors.white),
-            label: Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
+              onPressed: onPressed,
+              icon: Icon(icon, color: Colors.white),
+              label: Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ),
@@ -2893,43 +2937,40 @@ class _GameScreenState extends State<GameScreen> {
       height: double.infinity,
       color: canvasColor,
       child: SafeArea(
-        child: Stack(
+        child: Column(
           children: [
-            // Маленькая ненавязчивая стрелка выхода в левом верхнем углу.
-            Align(
-              alignment: Alignment.topLeft,
-              child: IconButton(
-                icon: Icon(
-                  Icons.arrow_back,
-                  color: isDark ? Colors.white54 : Colors.black54,
+            // Верхняя полоса с кнопкой выхода — НЕ входит в зоны нажатия.
+            SizedBox(
+              height: 48,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: IconButton(
+                  icon: Icon(
+                    Icons.arrow_back,
+                    color: isDark ? Colors.white54 : Colors.black54,
+                  ),
+                  onPressed: () {
+                    VoiceService.stop();
+                    Navigator.pop(context);
+                  },
                 ),
-                onPressed: () {
-                  VoiceService.stop();
-                  Navigator.pop(context);
-                },
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
+            // Две кликабельные зоны на весь оставшийся экран.
+            Expanded(
+              child: Row(
                 children: [
-                  const Spacer(),
-                  Row(
-                    children: [
-                      actionButton(
-                        color: Colors.green,
-                        icon: Icons.arrow_forward_rounded,
-                        label: 'Дальше',
-                        onPressed: () => _onPlayerDecision(true),
-                      ),
-                      const SizedBox(width: 12),
-                      actionButton(
-                        color: Colors.red,
-                        icon: Icons.front_hand_rounded,
-                        label: 'Стоп',
-                        onPressed: () => _onPlayerDecision(false),
-                      ),
-                    ],
+                  tapZone(
+                    color: Colors.green,
+                    icon: Icons.arrow_forward_rounded,
+                    label: 'Дальше',
+                    onPressed: () => _onPlayerDecision(true),
+                  ),
+                  tapZone(
+                    color: Colors.red,
+                    icon: Icons.front_hand_rounded,
+                    label: 'Стоп',
+                    onPressed: () => _onPlayerDecision(false),
                   ),
                 ],
               ),
