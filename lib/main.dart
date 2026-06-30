@@ -67,10 +67,13 @@ class GameTheme {
 final List<GameTheme> gameThemes = [
   const GameTheme(
     id: 'microworld',
+    // Эмодзи выбраны из набора <= Emoji 11.0, чтобы отображались и на
+    // Android 10 (🪰🪲🪨 — это Emoji 13.0, появились только в Android 11).
+    // Имена («Муха», «Жук») менять нельзя — к ним привязана озвучка.
     name: 'Микромир',
-    obj1: '🪰 Муха',
-    obj2: '🪲 Жук',
-    obstacle: '🪨 Камень',
+    obj1: '🦟 Муха',
+    obj2: '🐞 Жук',
+    obstacle: '🗿 Камень',
     primaryColor: Colors.teal,
     accentColor: Colors.tealAccent,
     price: 0,
@@ -1226,7 +1229,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                       ],
                     ),
                     child: Text(
-                      'Баланс кошелька: ${StorageService.userTotalBank} 🪙',
+                      'Баланс кошелька: ${StorageService.userTotalBank} 🟡',
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         fontSize: 18,
@@ -1389,7 +1392,7 @@ class GameHistoryScreen extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 4),
-                        const Text('🪙', style: TextStyle(fontSize: 16)),
+                        const Text('🟡', style: TextStyle(fontSize: 16)),
                       ],
                     ),
                   ),
@@ -1423,7 +1426,7 @@ class _UpgradesScreenState extends State<UpgradesScreen> {
 
     if (StorageService.userTotalBank < config.unlockCost) {
       _showErrorDialog(
-        "Недостаточно монет! Стоимость разблокировки: ${config.unlockCost} 🪙.\nВаш баланс: ${StorageService.userTotalBank} 🪙.",
+        "Недостаточно монет! Стоимость разблокировки: ${config.unlockCost} 🟡.\nВаш баланс: ${StorageService.userTotalBank} 🟡.",
       );
       return;
     }
@@ -1523,7 +1526,7 @@ class _UpgradesScreenState extends State<UpgradesScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'Ваш баланс: ${StorageService.userTotalBank} 🪙',
+                      'Ваш баланс: ${StorageService.userTotalBank} 🟡',
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
@@ -1546,7 +1549,7 @@ class _UpgradesScreenState extends State<UpgradesScreen> {
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                   ),
                   subtitle: const Text(
-                    'Границы ячеек исчезают после старта. Награда за ход: x2 🪙',
+                    'Границы ячеек исчезают после старта. Награда за ход: x2 🟡',
                     style: TextStyle(fontSize: 11, color: Colors.grey),
                   ),
                   activeThumbColor: activeTheme.primaryColor,
@@ -1619,7 +1622,7 @@ class _UpgradesScreenState extends State<UpgradesScreen> {
                       color: Colors.white,
                     ),
                     label: Text(
-                      '${config.unlockCost} 🪙',
+                      '${config.unlockCost} 🟡',
                       style: const TextStyle(color: Colors.white),
                     ),
                   );
@@ -1672,7 +1675,7 @@ class _UpgradesScreenState extends State<UpgradesScreen> {
                         if (config.allowDoubleMove)
                           const Text('• Возможны сдвоенные ходы'),
                         Text(
-                          '• Награда за ход: ${config.pointsFor(effObjects, effObstacles)} 🪙',
+                          '• Награда за ход: ${config.pointsFor(effObjects, effObstacles)} 🟡',
                         ),
                         if (isUnlocked && canCustomize) ...[
                           const SizedBox(height: 10),
@@ -1790,7 +1793,7 @@ class _ShopScreenState extends State<ShopScreen> {
         builder: (context) => AlertDialog(
           title: const Text('Недостаточно монет!'),
           content: Text(
-            'Для покупки темы "${theme.name}" требуется ${theme.price} 🪙.',
+            'Для покупки темы "${theme.name}" требуется ${theme.price} 🟡.',
           ),
           actions: [
             TextButton(
@@ -1867,7 +1870,7 @@ class _ShopScreenState extends State<ShopScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Баланс: ${StorageService.userTotalBank} 🪙',
+                  'Баланс: ${StorageService.userTotalBank} 🟡',
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 18,
@@ -1968,7 +1971,7 @@ class _ShopScreenState extends State<ShopScreen> {
                             color: Colors.white,
                           ),
                           label: Text(
-                            '${theme.price} 🪙',
+                            '${theme.price} 🟡',
                             style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
@@ -2085,7 +2088,7 @@ class _ShopScreenState extends State<ShopScreen> {
               ),
               onPressed: onBuy,
               child: Text(
-                '$price 🪙',
+                '$price 🟡',
                 style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
@@ -2140,7 +2143,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const Divider(height: 1),
                 SwitchListenable(
                   title: 'Глобальная слепая сетка',
-                  subtitle: 'Размывать границы с самого начала (x2 🪙)',
+                  subtitle: 'Размывать границы с самого начала (x2 🟡)',
                   value: StorageService.isBlindModeGlobal,
                   onChanged: (val) {
                     setState(() {
@@ -3065,7 +3068,7 @@ class _GameScreenState extends State<GameScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Вы заработали: $coinsEarned 🪙',
+              'Вы заработали: $coinsEarned 🟡',
               style: const TextStyle(fontSize: 18),
             ),
             const SizedBox(height: 20),
@@ -3131,7 +3134,7 @@ class _GameScreenState extends State<GameScreen> {
               ),
             ] else if (superGameSuccess) ...[
               const Text(
-                'ПОТРЯСАЮЩЕ! Вы нашли все цели! Награда х2 🪙!',
+                'ПОТРЯСАЮЩЕ! Вы нашли все цели! Награда х2 🟡!',
                 style: TextStyle(
                   color: Colors.green,
                   fontWeight: FontWeight.bold,
@@ -3268,7 +3271,7 @@ class _GameScreenState extends State<GameScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                '🪙 Заработано: $coinsEarned',
+                '🟡 Заработано: $coinsEarned',
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 14,
