@@ -1077,20 +1077,31 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final bool landscape =
+        MediaQuery.of(context).orientation == Orientation.landscape;
     return Scaffold(
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 24.0,
-              vertical: 20.0,
-            ),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
+        // LayoutBuilder + полноширинный скролл: тянуть/скролить можно в любом
+        // месте экрана, а не только по колонке с кнопками (важно для ландшафта).
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              padding: EdgeInsets.symmetric(
+                horizontal: 24.0,
+                vertical: landscape ? 12.0 : 20.0,
+              ),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: constraints.maxHeight - (landscape ? 24.0 : 40.0),
+                ),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 420),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
                   GestureDetector(
                     onTap: _onLogoTap,
                     child: Hero(
@@ -1104,11 +1115,11 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                             ).createShader(bounds),
-                            child: const Text(
+                            child: Text(
                               'MemoryFly',
                               textAlign: TextAlign.center,
                               style: TextStyle(
-                                fontSize: 44,
+                                fontSize: landscape ? 32 : 44,
                                 fontWeight: FontWeight.w900,
                                 letterSpacing: 0.5,
                                 height: 1.0,
@@ -1190,7 +1201,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                       ),
                     ),
                   ],
-                  const SizedBox(height: 30),
+                  SizedBox(height: landscape ? 16 : 30),
                   _buildMenuButton(
                     context,
                     icon: Icons.play_arrow_rounded,
@@ -1296,10 +1307,13 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                       ),
                     ),
                   ),
-                ],
+                      ],
+                    ),
+                  ),
+                ),
               ),
-            ),
-          ),
+            );
+          },
         ),
       ),
     );
@@ -1312,13 +1326,17 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
     required Color color,
     required VoidCallback onTap,
   }) {
+    // В ландшафте делаем кнопки компактнее, чтобы все пункты помещались
+    // и шапка не «съедала» половину невысокого экрана.
+    final bool landscape =
+        MediaQuery.of(context).orientation == Orientation.landscape;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6.0),
+      padding: EdgeInsets.symmetric(vertical: landscape ? 4.0 : 6.0),
       child: ElevatedButton.icon(
         style: ElevatedButton.styleFrom(
           backgroundColor: color,
           elevation: 2,
-          padding: const EdgeInsets.symmetric(vertical: 14),
+          padding: EdgeInsets.symmetric(vertical: landscape ? 9 : 14),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),
@@ -1327,9 +1345,9 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
         icon: Icon(icon, color: Colors.white),
         label: Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             color: Colors.white,
-            fontSize: 16,
+            fontSize: landscape ? 15 : 16,
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -2889,7 +2907,11 @@ class _GameScreenState extends State<GameScreen> {
   //  • Вертикально (портрет): как было раньше — кнопки внизу экрана.
   Widget _buildEmptyRoundsBody() {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color canvasColor = isDark ? Colors.black : const Color(0xFF9E9E9E);
+    // Более приятный фон вместо тусклого серого/чёрного: мягкий
+    // сине-серый в светлой теме и глубокий тёмный (как у приложения) в тёмной.
+    final Color canvasColor = isDark
+        ? const Color(0xFF161B24)
+        : const Color(0xFFE8ECF2);
 
     Widget backButton() => IconButton(
       icon: Icon(
