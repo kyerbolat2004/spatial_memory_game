@@ -8,9 +8,12 @@ void main() {
       // Изучаем настройки стартовой темы «Микромир»
       final microworld = gameThemes.firstWhere((t) => t.id == 'microworld');
       expect(microworld.name, 'Микромир');
-      expect(microworld.obj1, '🪰 Муха');
-      expect(microworld.obj2, '🪲 Жук');
-      expect(microworld.obstacle, '🪨 Камень');
+      // Эмодзи хранятся в запасном (Android 10-safe) варианте, на новых
+      // системах их повышает em(). Проверяем стабильную часть — имена
+      // объектов, к которым привязана озвучка.
+      expect(microworld.obj1.endsWith('Муха'), true);
+      expect(microworld.obj2.endsWith('Жук'), true);
+      expect(microworld.obstacle.endsWith('Камень'), true);
       expect(microworld.primaryColor, Colors.teal);
       expect(microworld.price, 0);
 
