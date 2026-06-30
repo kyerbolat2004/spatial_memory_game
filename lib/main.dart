@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:math';
 import 'dart:convert';
-import 'dart:typed_data' show BytesBuilder;
+import 'dart:typed_data' show BytesBuilder, ByteData;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_tts/flutter_tts.dart';
@@ -204,8 +204,31 @@ class StorageService {
   static bool devModeActive = false;
   static bool isBlindModeGlobal = true;
   static bool showSpeechText = false;
+  // Режим «пустой экран»: во время раундов скрыто всё, кроме двух кнопок
+  // «Дальше»/«Стоп». Включён по умолчанию.
+  static bool emptyScreenMode = true;
 
   static int activeDifficulty = 1;
+
+  // Пользовательская настройка количества объектов/преград на уровень.
+  // Ключ — номер уровня. Если значения нет — используется дефолт конфига.
+  static Map<int, int> customObjects = {};
+  static Map<int, int> customObstacles = {};
+
+  // Фактическое количество объектов в матче: выбранное игроком, но не больше
+  // максимума уровня и не меньше 1.
+  static int effectiveObjects(DifficultyConfig c) {
+    final v = customObjects[c.level] ?? c.objectsCount;
+    return v.clamp(1, c.objectsCount);
+  }
+
+  // Фактическое количество преград: минимум 1 (если уровень их вообще имеет),
+  // максимум — сколько предлагает уровень.
+  static int effectiveObstacles(DifficultyConfig c) {
+    if (c.obstaclesCount == 0) return 0;
+    final v = customObstacles[c.level] ?? c.obstaclesCount;
+    return v.clamp(1, c.obstaclesCount);
+  }
 
   static Future<void> loadData() async {
     final prefs = await SharedPreferences.getInstance();
@@ -216,6 +239,7 @@ class StorageService {
     isBlindModeGlobal = prefs.getBool('isBlindModeGlobal') ?? true;
     devModeActive = prefs.getBool('devModeActive') ?? false;
     showSpeechText = prefs.getBool('showSpeechText') ?? false;
+    emptyScreenMode = prefs.getBool('emptyScreenMode') ?? true;
 
     unlockedDifficulties =
         (prefs.getStringList('unlockedDifficulties') ?? ['1'])
@@ -227,6 +251,22 @@ class StorageService {
     if (winsJson != null) {
       Map<String, dynamic> decoded = jsonDecode(winsJson);
       difficultyWins = decoded.map(
+        (key, value) => MapEntry(int.parse(key), value as int),
+      );
+    }
+
+    String? customObjJson = prefs.getString('customObjects');
+    if (customObjJson != null) {
+      Map<String, dynamic> decoded = jsonDecode(customObjJson);
+      customObjects = decoded.map(
+        (key, value) => MapEntry(int.parse(key), value as int),
+      );
+    }
+
+    String? customObsJson = prefs.getString('customObstacles');
+    if (customObsJson != null) {
+      Map<String, dynamic> decoded = jsonDecode(customObsJson);
+      customObstacles = decoded.map(
         (key, value) => MapEntry(int.parse(key), value as int),
       );
     }
@@ -285,6 +325,7 @@ class StorageService {
     await prefs.setBool('isBlindModeGlobal', isBlindModeGlobal);
     await prefs.setBool('devModeActive', devModeActive);
     await prefs.setBool('showSpeechText', showSpeechText);
+    await prefs.setBool('emptyScreenMode', emptyScreenMode);
 
     await prefs.setStringList(
       'unlockedDifficulties',
@@ -296,6 +337,15 @@ class StorageService {
       'difficultyWins',
       jsonEncode(difficultyWins.map((k, v) => MapEntry(k.toString(), v))),
     );
+    await prefs.setString(
+      'customObjects',
+      jsonEncode(customObjects.map((k, v) => MapEntry(k.toString(), v))),
+    );
+    await prefs.setString(
+      'customObstacles',
+      jsonEncode(customObstacles.map((k, v) => MapEntry(k.toString(), v))),
+    );
+
     await prefs.setStringList('unlockedThemes', unlockedThemes);
     await prefs.setString('activeThemeId', activeThemeIdNotifier.value);
 
@@ -359,17 +409,30 @@ class DifficultyConfig {
     required this.winsRequiredFromPrevious,
   });
 
-  int get basePoints {
+  // Минимальный шаг хода: на 1 уровне (сетка 3х3) допустимы шаги в одну клетку,
+  // начиная со 2 уровня одинарные шаги исключены — минимум две клетки.
+  int get minStep => level == 1 ? 1 : 2;
+
+  // Сдвоенные ходы в одном направлении («вверх и ещё на вверх») имеют смысл
+  // только на достаточно крупных сетках, иначе суммарный сдвиг всегда выводит
+  // объект за поле. Включаем с уровня 5 (сетка 6х6 и больше).
+  bool get allowDoubleMove => gridSize >= 6;
+
+  // Награда считается от фактического количества объектов/преград в матче —
+  // если игрок уменьшил сложность через настройку, награда падает пропорционально.
+  int pointsFor(int objects, int obstacles) {
     int points = 10;
     if (gridSize >= 4) points += 5;
     if (gridSize >= 6) points += 10;
     if (gridSize >= 8) points += 15;
     if (gridSize >= 10) points += 20;
-    if (objectsCount > 1) points += 5;
-    if (obstaclesCount > 0) points += 5 * obstaclesCount;
+    if (objects > 1) points += 5;
+    if (obstacles > 0) points += 5 * obstacles;
     if (maxStep > 1) points += 5 * (maxStep - 1);
     return points;
   }
+
+  int get basePoints => pointsFor(objectsCount, obstaclesCount);
 }
 
 final List<DifficultyConfig> difficulties = [
@@ -387,7 +450,7 @@ final List<DifficultyConfig> difficulties = [
     gridSize: 4,
     objectsCount: 2,
     obstaclesCount: 0,
-    maxStep: 1,
+    maxStep: 2,
     unlockCost: 1000,
     winsRequiredFromPrevious: 4,
   ),
@@ -396,7 +459,7 @@ final List<DifficultyConfig> difficulties = [
     gridSize: 4,
     objectsCount: 1,
     obstaclesCount: 1,
-    maxStep: 1,
+    maxStep: 2,
     unlockCost: 2500,
     winsRequiredFromPrevious: 4,
   ),
@@ -482,6 +545,14 @@ class ObjectState {
   });
 
   ObjectState clone() => ObjectState(id: id, x: x, y: y, emoji: emoji);
+}
+
+// Один сегмент хода: направление + количество клеток. Ход состоит из 1-2
+// сегментов (перпендикулярных «влево и вверх» или сдвоенных «вверх и ещё вверх»).
+class MoveSegment {
+  final String dir;
+  final int step;
+  const MoveSegment(this.dir, this.step);
 }
 
 class PendingMove {
@@ -614,13 +685,12 @@ class TTSEngine {
       : (s == 2 ? "две клетки" : (s == 3 ? "три клетки" : "четыре клетки"));
 
   // Собирает озвучку хода: текст (для UI/fallback) и список аудиоклипов,
-  // которые проигрываются подряд: вступление + движение [+ "и на" + движение].
+  // которые проигрываются подряд: вступление + движение [+ связка + движение].
+  // Связка между сегментами: «и ещё на» — если направление повторяется
+  // (сдвоенный ход), иначе «и на» (перпендикулярный ход).
   static MoveSpeech generateMove({
     required String rawName,
-    required String dirX,
-    required int stepX,
-    required String dirY,
-    required int stepY,
+    required List<MoveSegment> segments,
   }) {
     final rand = Random();
 
@@ -637,23 +707,19 @@ class TTSEngine {
 
     List<String> clips = ["intro_${nameKey}_${modal[1]}_$actionKey"];
 
-    // Сначала горизонталь (dirX), затем вертикаль (dirY) — как в логике хода.
-    List<List<dynamic>> moves = [];
-    if (dirX.isNotEmpty) moves.add([dirX, stepX]);
-    if (dirY.isNotEmpty) moves.add([dirY, stepY]);
-
-    List<String> motionTexts = [];
-    for (int i = 0; i < moves.length; i++) {
-      String dir = moves[i][0] as String;
-      int step = moves[i][1] as int;
-      if (i > 0) clips.add("connector_i_na");
-      clips.add("motion_${step}_${_dirKeys[dir]}");
-      motionTexts.add("${_stepWord(step)} $dir");
+    final buf = StringBuffer("$cleanName ${modal[0]} $action на");
+    for (int i = 0; i < segments.length; i++) {
+      final seg = segments[i];
+      if (i > 0) {
+        final bool sameDir = segments[i - 1].dir == seg.dir;
+        clips.add(sameDir ? "connector_i_eshe_na" : "connector_i_na");
+        buf.write(sameDir ? " и ещё на" : " и на");
+      }
+      clips.add("motion_${seg.step}_${_dirKeys[seg.dir]}");
+      buf.write(" ${_stepWord(seg.step)} ${seg.dir}");
     }
 
-    String text =
-        "$cleanName ${modal[0]} $action на ${motionTexts.join(' и на ')}";
-    return MoveSpeech(text, clips);
+    return MoveSpeech(buf.toString(), clips);
   }
 }
 
@@ -679,6 +745,24 @@ class VoiceService {
     "miss_empty": "Промах! Это была пустая ячейка.",
     "xray_on": "Рентген активирован на три секунды.",
   };
+
+  // Подстановка для клипов, которые ещё могут быть не записаны диктором.
+  // Пока нет «и ещё на» — используем записанный «и на», чтобы фраза целиком
+  // звучала голосом диктора. Как только настоящий клип появится в assets —
+  // он подхватится автоматически.
+  static const Map<String, String> _clipFallback = {
+    "connector_i_eshe_na": "connector_i_na",
+  };
+
+  static Future<ByteData> _loadClip(String id) async {
+    try {
+      return await rootBundle.load('assets/voice/$id.mp3');
+    } catch (e) {
+      final fb = _clipFallback[id];
+      if (fb == null) rethrow;
+      return await rootBundle.load('assets/voice/$fb.mp3');
+    }
+  }
 
   static Future<void> init() async {
     await TTSEngine.init();
@@ -725,7 +809,7 @@ class VoiceService {
       // «три клетки влево» нет паузы плеера на подготовку каждого файла.
       final builder = BytesBuilder();
       for (final id in clipIds) {
-        final data = await rootBundle.load('assets/voice/$id.mp3');
+        final data = await _loadClip(id);
         builder.add(data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes));
       }
       final dir = await getTemporaryDirectory();
@@ -1377,6 +1461,49 @@ class _UpgradesScreenState extends State<UpgradesScreen> {
     );
   }
 
+  // Степпер «− значение +» для настройки количества объектов/преград.
+  // Кнопки блокируются на границах [min, max] — нельзя превысить максимум уровня.
+  Widget _buildCounterRow({
+    required String label,
+    required int value,
+    required int min,
+    required int max,
+    required Color color,
+    required ValueChanged<int> onChanged,
+  }) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(label, style: const TextStyle(fontSize: 13)),
+        ),
+        IconButton(
+          visualDensity: VisualDensity.compact,
+          color: color,
+          onPressed: value > min ? () => onChanged(value - 1) : null,
+          icon: const Icon(Icons.remove_circle_outline),
+        ),
+        SizedBox(
+          width: 24,
+          child: Text(
+            '$value',
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+          ),
+        ),
+        IconButton(
+          visualDensity: VisualDensity.compact,
+          color: color,
+          onPressed: value < max ? () => onChanged(value + 1) : null,
+          icon: const Icon(Icons.add_circle_outline),
+        ),
+        Text(
+          '/ $max',
+          style: const TextStyle(fontSize: 11, color: Colors.grey),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final activeTheme = getActiveTheme();
@@ -1447,6 +1574,12 @@ class _UpgradesScreenState extends State<UpgradesScreen> {
                     StorageService.devModeActive;
                 final isActive =
                     StorageService.activeDifficulty == config.level;
+
+                final effObjects = StorageService.effectiveObjects(config);
+                final effObstacles = StorageService.effectiveObstacles(config);
+                // Есть ли что настраивать на этом уровне.
+                final bool canCustomize =
+                    config.objectsCount > 1 || config.obstaclesCount > 1;
 
                 final wins = StorageService.difficultyWins[config.level] ?? 0;
                 final prevWins =
@@ -1526,11 +1659,80 @@ class _UpgradesScreenState extends State<UpgradesScreen> {
                           '• Размер сетки: ${config.gridSize} x ${config.gridSize}',
                         ),
                         Text(
-                          '• Объектов на поле: ${config.objectsCount} (${config.objectsCount == 1 ? "Один" : "Два"})',
+                          '• Объектов на поле: $effObjects из ${config.objectsCount}',
                         ),
-                        Text('• Статичных преград: ${config.obstaclesCount}'),
-                        Text('• Макс. шаг: ±${config.maxStep} клетки'),
-                        Text('• Награда за ход: ${config.basePoints} 🪙'),
+                        Text(
+                          '• Статичных преград: $effObstacles из ${config.obstaclesCount}',
+                        ),
+                        Text(
+                          config.minStep == config.maxStep
+                              ? '• Шаг хода: ${config.maxStep} клет.'
+                              : '• Шаг хода: ${config.minStep}–${config.maxStep} клет.',
+                        ),
+                        if (config.allowDoubleMove)
+                          const Text('• Возможны сдвоенные ходы'),
+                        Text(
+                          '• Награда за ход: ${config.pointsFor(effObjects, effObstacles)} 🪙',
+                        ),
+                        if (isUnlocked && canCustomize) ...[
+                          const SizedBox(height: 10),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: activeTheme.primaryColor.withValues(
+                                alpha: 0.08,
+                              ),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  '⚙️ Настройка матча',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                if (config.objectsCount > 1)
+                                  _buildCounterRow(
+                                    label: 'Объекты',
+                                    value: effObjects,
+                                    min: 1,
+                                    max: config.objectsCount,
+                                    color: activeTheme.primaryColor,
+                                    onChanged: (v) {
+                                      setState(() {
+                                        StorageService.customObjects[config
+                                                .level] =
+                                            v;
+                                        StorageService.syncWithDisk();
+                                      });
+                                    },
+                                  ),
+                                if (config.obstaclesCount > 1)
+                                  _buildCounterRow(
+                                    label: 'Преграды',
+                                    value: effObstacles,
+                                    min: 1,
+                                    max: config.obstaclesCount,
+                                    color: activeTheme.primaryColor,
+                                    onChanged: (v) {
+                                      setState(() {
+                                        StorageService.customObstacles[config
+                                                .level] =
+                                            v;
+                                        StorageService.syncWithDisk();
+                                      });
+                                    },
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
                         const Divider(height: 20),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1973,6 +2175,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 const Divider(height: 1),
                 SwitchListenable(
+                  title: 'Режим «пустой экран»',
+                  subtitle:
+                      'Во время раундов скрыто всё, кроме кнопок «Дальше»/«Стоп»',
+                  value: StorageService.emptyScreenMode,
+                  onChanged: (val) {
+                    setState(() {
+                      StorageService.emptyScreenMode = val;
+                      StorageService.syncWithDisk();
+                    });
+                  },
+                ),
+                const Divider(height: 1),
+                SwitchListenable(
                   title: 'Режим тестировщика',
                   subtitle: 'Включить подсказки реальных позиций',
                   value: StorageService.devModeActive,
@@ -2100,6 +2315,11 @@ class _GameScreenState extends State<GameScreen> {
   int maxRounds = 10;
   int coinsEarned = 0;
 
+  // Фактическое количество объектов/преград в этой сессии — с учётом настройки
+  // игрока на экране «Сложность» (но не больше максимума уровня).
+  late final int effObjects = StorageService.effectiveObjects(widget.config);
+  late final int effObstacles = StorageService.effectiveObstacles(widget.config);
+
   bool xrayActive = false;
   List<Point<int>> obstacleCoordinates = [];
   List<ObjectState> objects = [];
@@ -2127,7 +2347,7 @@ class _GameScreenState extends State<GameScreen> {
 
   void _setupInitialGrid() {
     obstacleCoordinates.clear();
-    while (obstacleCoordinates.length < widget.config.obstaclesCount) {
+    while (obstacleCoordinates.length < effObstacles) {
       final p = Point(
         _random.nextInt(widget.config.gridSize),
         _random.nextInt(widget.config.gridSize),
@@ -2154,7 +2374,7 @@ class _GameScreenState extends State<GameScreen> {
       ObjectState(id: 1, x: p1.x, y: p1.y, emoji: theme.obj1.split(' ').first),
     );
 
-    if (widget.config.objectsCount > 1) {
+    if (effObjects > 1) {
       Point<int>? p2;
       while (p2 == null) {
         final p = Point(
@@ -2221,44 +2441,67 @@ class _GameScreenState extends State<GameScreen> {
     final theme = getActiveTheme();
     String fullObjName = activeObj.id == 1 ? theme.obj1 : theme.obj2;
 
-    int nextX = activeObj.x;
-    int nextY = activeObj.y;
+    final config = widget.config;
+    final int minStep = config.minStep;
+    final int maxStep = config.maxStep;
 
-    int stepX = 0;
-    int stepY = 0;
-    String dirX = "";
-    String dirY = "";
+    // Случайный шаг в пределах [minStep, maxStep].
+    int randStep() => minStep + _random.nextInt(maxStep - minStep + 1);
 
-    while (stepX == 0 && stepY == 0) {
-      stepX = _random.nextInt(widget.config.maxStep + 1);
-      stepY = _random.nextInt(widget.config.maxStep + 1);
-    }
+    final List<MoveSegment> segments = [];
 
-    if (stepX > 0) {
-      if (_random.nextBool()) {
-        nextX = activeObj.x - stepX;
-        dirX = "влево";
-      } else {
-        nextX = activeObj.x + stepX;
-        dirX = "вправо";
+    // С вероятностью 30% (на крупных сетках) — сдвоенный ход в одном направлении:
+    // например «вверх и ещё на вверх». Иначе — обычный перпендикулярный ход.
+    final bool doubleMove =
+        config.allowDoubleMove && _random.nextInt(100) < 30;
+
+    if (doubleMove) {
+      const dirs = ["влево", "вправо", "вверх", "вниз"];
+      final dir = dirs[_random.nextInt(dirs.length)];
+      segments.add(MoveSegment(dir, randStep()));
+      segments.add(MoveSegment(dir, randStep()));
+    } else {
+      // Каждая ось либо стоит (0), либо идёт на [minStep..maxStep].
+      // Гарантируем, что хотя бы одна ось движется.
+      int stepX = 0;
+      int stepY = 0;
+      while (stepX == 0 && stepY == 0) {
+        stepX = _random.nextBool() ? randStep() : 0;
+        stepY = _random.nextBool() ? randStep() : 0;
+      }
+      if (stepX > 0) {
+        segments.add(MoveSegment(_random.nextBool() ? "влево" : "вправо", stepX));
+      }
+      if (stepY > 0) {
+        segments.add(MoveSegment(_random.nextBool() ? "вверх" : "вниз", stepY));
       }
     }
 
-    if (stepY > 0) {
-      if (_random.nextBool()) {
-        nextY = activeObj.y - stepY;
-        dirY = "вверх";
-      } else {
-        nextY = activeObj.y + stepY;
-        dirY = "вниз";
+    // Суммарный сдвиг по сегментам — проверяем только финальную клетку.
+    int nextX = activeObj.x;
+    int nextY = activeObj.y;
+    for (final seg in segments) {
+      switch (seg.dir) {
+        case "влево":
+          nextX -= seg.step;
+          break;
+        case "вправо":
+          nextX += seg.step;
+          break;
+        case "вверх":
+          nextY -= seg.step;
+          break;
+        case "вниз":
+          nextY += seg.step;
+          break;
       }
     }
 
     bool isInside =
         nextX >= 0 &&
-        nextX < widget.config.gridSize &&
+        nextX < config.gridSize &&
         nextY >= 0 &&
-        nextY < widget.config.gridSize;
+        nextY < config.gridSize;
     bool landsOnObstacle = obstacleCoordinates.contains(Point(nextX, nextY));
 
     bool landsOnOtherObject = false;
@@ -2272,20 +2515,15 @@ class _GameScreenState extends State<GameScreen> {
 
     MoveSpeech speech = TTSEngine.generateMove(
       rawName: fullObjName,
-      dirX: dirX,
-      stepX: stepX,
-      dirY: dirY,
-      stepY: stepY,
+      segments: segments,
     );
 
     setState(() {
       currentMove = PendingMove(
         objectId: activeObj.id,
         objectEmoji: activeObj.emoji,
-        directionText:
-            "${dirX.isNotEmpty ? '$dirX $stepX' : ''} ${dirY.isNotEmpty ? '$dirY $stepY' : ''}"
-                .trim(),
-        step: stepX + stepY,
+        directionText: segments.map((s) => "${s.dir} ${s.step}").join(" + "),
+        step: segments.fold(0, (sum, s) => sum + s.step),
         nextX: nextX,
         nextY: nextY,
         isSafe: isSafe,
@@ -2310,7 +2548,7 @@ class _GameScreenState extends State<GameScreen> {
     bool isCorrect = (playerSaysSafe == currentMove!.isSafe);
 
     if (isCorrect) {
-      int reward = widget.config.basePoints;
+      int reward = widget.config.pointsFor(effObjects, effObstacles);
       if (StorageService.isBlindModeGlobal) reward *= 2;
 
       setState(() {
@@ -2335,7 +2573,9 @@ class _GameScreenState extends State<GameScreen> {
 
       _generateNextStep();
     } else {
-      if (StorageService.itemShieldCount > 0) {
+      // В режиме «пустой экран» расходники не работают — Щит не срабатывает.
+      if (!StorageService.emptyScreenMode &&
+          StorageService.itemShieldCount > 0) {
         setState(() {
           StorageService.itemShieldCount--;
         });
@@ -2486,61 +2726,171 @@ class _GameScreenState extends State<GameScreen> {
   Widget build(BuildContext context) {
     final activeTheme = getActiveTheme();
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Раунд $currentRound / $maxRounds'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            VoiceService.stop();
-            Navigator.pop(context);
-          },
-        ),
-        actions: [
-          if (!isMemorizing && !isGameOver && !superGameMode)
-            Padding(
-              padding: const EdgeInsets.only(right: 12),
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: activeTheme.primaryColor,
-                  foregroundColor: Colors.white,
-                ),
-                onPressed: _activateXray,
-                icon: const Icon(Icons.remove_red_eye_outlined),
-                label: Text('Рентген (${StorageService.itemXrayCount})'),
+    // Во время раундов (не запоминание, не конец игры, не супер-игра) при
+    // включённом режиме «пустой экран» показываем только полотно и две кнопки.
+    final bool emptyRoundsView =
+        StorageService.emptyScreenMode &&
+        !isMemorizing &&
+        !isGameOver &&
+        !superGameMode;
+
+    final Widget scaffold = emptyRoundsView
+        ? Scaffold(body: _buildEmptyRoundsBody())
+        : Scaffold(
+            appBar: AppBar(
+              title: Text('Раунд $currentRound / $maxRounds'),
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () {
+                  VoiceService.stop();
+                  Navigator.pop(context);
+                },
+              ),
+              actions: [
+                if (!isMemorizing && !isGameOver && !superGameMode)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 12),
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: activeTheme.primaryColor,
+                        foregroundColor: Colors.white,
+                      ),
+                      onPressed: _activateXray,
+                      icon: const Icon(Icons.remove_red_eye_outlined),
+                      label: Text('Рентген (${StorageService.itemXrayCount})'),
+                    ),
+                  ),
+              ],
+            ),
+            body: SafeArea(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  bool isLandscape =
+                      constraints.maxWidth > constraints.maxHeight;
+
+                  if (isLandscape) {
+                    return Row(
+                      children: [
+                        if (StorageService.controlsOnLeft) ...[
+                          Expanded(child: _buildControlsPanel(activeTheme)),
+                          const VerticalDivider(width: 1),
+                          Expanded(child: _buildGridArea(activeTheme)),
+                        ] else ...[
+                          Expanded(child: _buildGridArea(activeTheme)),
+                          const VerticalDivider(width: 1),
+                          Expanded(child: _buildControlsPanel(activeTheme)),
+                        ],
+                      ],
+                    );
+                  } else {
+                    return Column(
+                      children: [
+                        Expanded(child: _buildGridArea(activeTheme)),
+                        const Divider(height: 1),
+                        _buildControlsPanel(activeTheme),
+                      ],
+                    );
+                  }
+                },
               ),
             ),
-        ],
-      ),
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            bool isLandscape = constraints.maxWidth > constraints.maxHeight;
+          );
 
-            if (isLandscape) {
-              return Row(
+    // Останавливаем озвучку, если игрок выходит системной кнопкой «назад»
+    // (в пустом режиме своей кнопки выхода на полотне нет).
+    return PopScope(
+      canPop: true,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) VoiceService.stop();
+      },
+      child: scaffold,
+    );
+  }
+
+  // Полноэкранное полотно режима «пустой экран»: тёмная тема — чёрное,
+  // светлая — серое. Внизу только кнопки «Дальше»/«Стоп», больше ничего.
+  Widget _buildEmptyRoundsBody() {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final Color canvasColor = isDark ? Colors.black : const Color(0xFF9E9E9E);
+
+    Widget actionButton({
+      required Color color,
+      required IconData icon,
+      required String label,
+      required VoidCallback onPressed,
+    }) {
+      return Expanded(
+        child: SizedBox(
+          height: 56,
+          child: ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: color,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            onPressed: onPressed,
+            icon: Icon(icon, color: Colors.white),
+            label: Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      color: canvasColor,
+      child: SafeArea(
+        child: Stack(
+          children: [
+            // Маленькая ненавязчивая стрелка выхода в левом верхнем углу.
+            Align(
+              alignment: Alignment.topLeft,
+              child: IconButton(
+                icon: Icon(
+                  Icons.arrow_back,
+                  color: isDark ? Colors.white54 : Colors.black54,
+                ),
+                onPressed: () {
+                  VoiceService.stop();
+                  Navigator.pop(context);
+                },
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
                 children: [
-                  if (StorageService.controlsOnLeft) ...[
-                    Expanded(child: _buildControlsPanel(activeTheme)),
-                    const VerticalDivider(width: 1),
-                    Expanded(child: _buildGridArea(activeTheme)),
-                  ] else ...[
-                    Expanded(child: _buildGridArea(activeTheme)),
-                    const VerticalDivider(width: 1),
-                    Expanded(child: _buildControlsPanel(activeTheme)),
-                  ],
+                  const Spacer(),
+                  Row(
+                    children: [
+                      actionButton(
+                        color: Colors.green,
+                        icon: Icons.arrow_forward_rounded,
+                        label: 'Дальше',
+                        onPressed: () => _onPlayerDecision(true),
+                      ),
+                      const SizedBox(width: 12),
+                      actionButton(
+                        color: Colors.red,
+                        icon: Icons.front_hand_rounded,
+                        label: 'Стоп',
+                        onPressed: () => _onPlayerDecision(false),
+                      ),
+                    ],
+                  ),
                 ],
-              );
-            } else {
-              return Column(
-                children: [
-                  Expanded(child: _buildGridArea(activeTheme)),
-                  const Divider(height: 1),
-                  _buildControlsPanel(activeTheme),
-                ],
-              );
-            }
-          },
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -727,6 +727,12 @@
       "file": "connector_i_na.mp3",
       "text": "и на",
       "group": "connector"
+    },
+    {
+      "id": "connector_i_eshe_na",
+      "file": "connector_i_eshe_na.mp3",
+      "text": "и ещё на",
+      "group": "connector"
     }
   ]
 }
