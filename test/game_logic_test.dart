@@ -29,7 +29,7 @@ void main() {
       expect(level1.gridSize, 3);
       expect(level1.objectsCount, 1);
       expect(level1.obstaclesCount, 0);
-      expect(level1.maxStep, 1);
+      expect(level1.maxStep, 2);
 
       // Проверяем хардкорный пятый уровень сложности
       final level5 = difficulties.firstWhere((d) => d.level == 5);
@@ -39,11 +39,11 @@ void main() {
       expect(level5.maxStep, 2);
     });
 
-    test('Step Constraints: single only on level 1, min 2 from level 2', () {
-      // На 1 уровне (сетка 3х3) допустимы одинарные шаги.
+    test('Step Constraints: 1-2 cells on level 1, min 2 from level 2', () {
+      // На 1 уровне (сетка 3х3) ход на 1 или 2 клетки (minStep=1, maxStep=2).
       final level1 = difficulties.firstWhere((d) => d.level == 1);
       expect(level1.minStep, 1);
-      expect(level1.maxStep, 1);
+      expect(level1.maxStep, 2);
       expect(level1.allowDoubleMove, isFalse);
 
       // Со 2 уровня одинарные шаги исключены: минимум две клетки.

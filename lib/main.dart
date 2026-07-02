@@ -459,8 +459,9 @@ class DifficultyConfig {
     required this.winsRequiredFromPrevious,
   });
 
-  // Минимальный шаг хода: на 1 уровне (сетка 3х3) допустимы шаги в одну клетку,
-  // начиная со 2 уровня одинарные шаги исключены — минимум две клетки.
+  // Минимальный шаг хода: на 1 уровне (сетка 3х3) допустим шаг в одну клетку
+  // (в сочетании с maxStep=2 это даёт ход на 1 или 2 клетки), начиная со
+  // 2 уровня одинарные шаги исключены — минимум две клетки.
   int get minStep => level == 1 ? 1 : 2;
 
   // Сдвоенные ходы в одном направлении («вверх и ещё на вверх») имеют смысл
@@ -491,7 +492,7 @@ final List<DifficultyConfig> difficulties = [
     gridSize: 3,
     objectsCount: 1,
     obstaclesCount: 0,
-    maxStep: 1,
+    maxStep: 2, // уровень 1: шаг 1 или 2 клетки (minStep=1)
     unlockCost: 0,
     winsRequiredFromPrevious: 0,
   ),
