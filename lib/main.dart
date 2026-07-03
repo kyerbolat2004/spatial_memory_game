@@ -1018,21 +1018,30 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 const Text(
-                  '🎯 Главное правило:',
+                  '🎯 Цель',
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                 ),
                 const SizedBox(height: 4),
                 const Text(
-                  'Мысленно отслеживайте траектории движения скрытых объектов на поле. Физически они не перемещаются на экране. Движение озвучивает диктор.',
+                  'Держите в уме, где на поле находятся скрытые объекты. Сами они по экрану не двигаются — каждый ход вслух объявляет диктор. Ваша задача — мысленно понимать, куда объект попадёт.',
                 ),
                 const Divider(height: 20),
                 const Text(
-                  '🎮 Пошаговый контроль:',
+                  '⏱️ Запоминание',
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                 ),
                 const SizedBox(height: 4),
                 const Text(
-                  'Программа озвучивает ровно один ход для случайного объекта. Вы должны моментально принять решение:',
+                  'В начале сессии объекты и преграды на несколько секунд показываются на поле. Запомните их расположение — дальше поле станет пустым.',
+                ),
+                const Divider(height: 20),
+                const Text(
+                  '🎧 Ход и решение',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Диктор произносит один ход случайного объекта, например: «Кошка пойдёт на две клетки вверх и на одну клетку вправо». Сразу принимайте решение:',
                 ),
                 const SizedBox(height: 8),
                 Row(
@@ -1041,7 +1050,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        '«Дальше» — если объект после шага остаётся в пределах сетки и не натыкается на преграды или финал другого объекта.',
+                        '«Дальше» — если после хода объект остаётся на поле и не встаёт на преграду или на другой объект.',
                       ),
                     ),
                   ],
@@ -1053,31 +1062,50 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        '«Стоп» — если шаг выводит объект наружу, на камень/преграду или сталкивает его со второй фишкой.',
+                        '«Стоп» — если ход выводит объект за край поля, ставит его на преграду или на другой объект.',
                       ),
                     ),
                   ],
                 ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Учитывается финальная клетка после хода.',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  '💡 В горизонтальном режиме можно нажимать в любом месте своей половины экрана: слева — «Дальше», справа — «Стоп».',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
                 const Divider(height: 20),
                 Text(
-                  '🪐 Элементы Мира Темы (${activeTheme.name}):',
+                  '🧩 Элементы темы «${activeTheme.name}»',
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(em('• Фишка 1: ${activeTheme.obj1}')),
-                Text(em('• Фишка 2 (при наличии): ${activeTheme.obj2}')),
-                Text(em('• Преграда Темы: ${activeTheme.obstacle}')),
-                const SizedBox(height: 12),
+                Text(em('• Объект 1: ${activeTheme.obj1}')),
+                Text(em('• Объект 2 (если есть): ${activeTheme.obj2}')),
+                Text(em('• Преграда: ${activeTheme.obstacle}')),
+                const Divider(height: 20),
                 const Text(
-                  '🏆 Сверх-игра:',
+                  '🏆 Супер-игра',
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                 ),
                 const SizedBox(height: 4),
                 const Text(
-                  'В конце безошибочной сессии начнется «Супер-Тап»: по памяти найдите скрытые объекты на пустом поле. Избегайте ловушек на месте препятствий!',
+                  'Пройдите всю сессию без ошибок — начнётся «Супер-Тап»: по памяти ткните в клетки, где спрятаны объекты, на пустом поле. Не попадите в клетки бывших преград — там ловушки. Успех удваивает монеты!',
+                ),
+                const Divider(height: 20),
+                const Text(
+                  '💰 Монеты и голос',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'За верные решения начисляются монеты (в «слепом режиме» — ×2). На них в магазине открываются новые уровни и темы. Голос диктора (мужской/женский) и громкость меняются в «Настройках».',
                 ),
               ],
             ),
