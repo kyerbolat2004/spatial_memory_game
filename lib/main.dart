@@ -289,6 +289,7 @@ class StorageService {
     showSpeechText = prefs.getBool('showSpeechText') ?? false;
     emptyScreenMode = prefs.getBool('emptyScreenMode') ?? true;
     voiceFemale = prefs.getBool('voiceFemale') ?? false;
+    TTSEngine.volume = prefs.getDouble('ttsVolume') ?? 0.9;
 
     unlockedDifficulties =
         (prefs.getStringList('unlockedDifficulties') ?? ['1'])
@@ -376,6 +377,7 @@ class StorageService {
     await prefs.setBool('showSpeechText', showSpeechText);
     await prefs.setBool('emptyScreenMode', emptyScreenMode);
     await prefs.setBool('voiceFemale', voiceFemale);
+    await prefs.setDouble('ttsVolume', TTSEngine.volume);
 
     await prefs.setStringList(
       'unlockedDifficulties',
@@ -2338,6 +2340,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 TTSEngine.volume = val;
               });
             },
+            onChangeEnd: (val) => StorageService.syncWithDisk(),
           ),
           const SizedBox(height: 20),
           ElevatedButton(
@@ -3290,6 +3293,13 @@ class _GameScreenState extends State<GameScreen> {
                   memorizationTime = 4;
                   isMemorizing = true;
                   superGameMode = false;
+                  // Полный сброс состояния супер-игры и рентгена, чтобы новая
+                  // попытка гарантированно стартовала «с чистого листа».
+                  superGameStep = 1;
+                  superGameFailed = false;
+                  superGameSuccess = false;
+                  tappedIndices.clear();
+                  xrayActive = false;
                   _setupInitialGrid();
                   _startMemorizationCountdown();
                 });

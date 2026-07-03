@@ -196,4 +196,83 @@ void main() {
     }
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('Сессия завершается, «Повторить» сбрасывает раунд', (tester) async {
+    StorageService.emptyScreenMode = false; // нужен AppBar «Раунд X» и кнопки снизу
+    await pumpApp(tester);
+    await openFromMenu(tester, 'Старт сессии');
+    for (int i = 0; i < 6; i++) {
+      await tester.pump(const Duration(seconds: 1));
+    }
+    await tester.pump(const Duration(milliseconds: 300));
+
+    // Жмём «Дальше» до конца сессии: рано или поздно ход окажется опасным
+    // (уход за поле) и будет «Игра окончена», либо дойдём до супер-игры.
+    bool ended = false;
+    for (int i = 0; i < 40 && !ended; i++) {
+      final next = find.text('Дальше');
+      if (next.evaluate().isEmpty) {
+        ended = true;
+        break;
+      }
+      await tester.tap(next.first);
+      await tester.pump(const Duration(milliseconds: 250));
+      if (find.text('ИГРА ОКОНЧЕНА').evaluate().isNotEmpty) ended = true;
+      if (find.textContaining('СУПЕР-ИГРА').evaluate().isNotEmpty) ended = true;
+    }
+    expect(ended, isTrue, reason: 'сессия должна завершиться');
+    expect(tester.takeException(), isNull);
+
+    // Если поражение — проверяем перезапуск.
+    if (find.text('Повторить попытку').evaluate().isNotEmpty) {
+      await tester.tap(find.text('Повторить попытку'));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.textContaining('Раунд 1'), findsWidgets);
+      // Продреним таймеры нового обратного отсчёта запоминания,
+      // чтобы не осталось «pending timer» на момент завершения теста.
+      for (int i = 0; i < 6; i++) {
+        await tester.pump(const Duration(seconds: 1));
+      }
+    }
+  });
+
+  testWidgets('Настройки сохраняются между перезапусками', (tester) async {
+    await pumpApp(tester);
+    await openFromMenu(tester, 'Настройки');
+    final before = StorageService.voiceFemale;
+    final sw = find.descendant(
+      of: find.widgetWithText(ListTile, 'Женский голос диктора'),
+      matching: find.byType(Switch),
+    );
+    await tester.ensureVisible(sw);
+    await tester.tap(sw);
+    await tester.pumpAndSettle();
+    // Эмулируем перезапуск приложения — перечитываем настройки с диска.
+    await StorageService.loadData();
+    expect(StorageService.voiceFemale, !before, reason: 'настройка не сохранилась');
+  });
+
+  testWidgets('Громкость TTS сохраняется между перезапусками', (tester) async {
+    await pumpApp(tester);
+    await openFromMenu(tester, 'Настройки');
+    final slider = find.byType(Slider);
+    await tester.ensureVisible(slider);
+    await tester.tap(slider); // ставит громкость ~0.5
+    await tester.pumpAndSettle();
+    final v = TTSEngine.volume;
+    await StorageService.loadData();
+    expect(TTSEngine.volume, closeTo(v, 0.001), reason: 'громкость не сохранилась');
+  });
+
+  testWidgets('Магазин: не хватает монет — показывается диалог', (tester) async {
+    StorageService.devModeActive = false;
+    StorageService.userTotalBank = 0;
+    await pumpApp(tester);
+    await openFromMenu(tester, 'Магазин тем');
+    final shield = find.widgetWithText(ElevatedButton, '1000 $coin');
+    await tester.ensureVisible(shield.first);
+    await tester.tap(shield.first);
+    await tester.pumpAndSettle();
+    expect(find.text('Недостаточно монет!'), findsOneWidget);
+  });
 }
