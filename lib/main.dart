@@ -870,10 +870,11 @@ class VoiceService {
     }
     await TTSEngine.stop();
     try {
-      // Полностью сбрасываем прошлый источник, иначе при переключении на новую
-      // фразу плеер успевает коротко проиграть начало предыдущей озвучки.
+      // Глушим предыдущую фразу через stop() — без release(): release пересоздаёт
+      // нативный плеер и даёт заметную паузу между фразами. От наложения
+      // защищают снятый ReleaseMode.stop и токен _playToken ниже.
       try {
-        await _player.release();
+        await _player.stop();
       } catch (_) {}
       if (myToken != _playToken) return; // нас уже сменил новый вызов
 
