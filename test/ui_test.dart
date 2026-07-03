@@ -35,7 +35,6 @@ void main() {
     // Открываем весь контент, чтобы кнопки магазина/сложности были активны.
     StorageService.devModeActive = true;
     StorageService.userTotalBank = 999999;
-    StorageService.emptyScreenMode = true;
   });
 
   Future<void> pumpApp(WidgetTester tester) async {
@@ -121,7 +120,6 @@ void main() {
     await toggle('Глобальная слепая сетка', () => StorageService.isBlindModeGlobal);
     await toggle('Панель управления слева', () => StorageService.controlsOnLeft);
     await toggle('Отображение текста хода', () => StorageService.showSpeechText);
-    await toggle('Режим «пустой экран»', () => StorageService.emptyScreenMode);
     await toggle('Женский голос диктора', () => StorageService.voiceFemale);
   });
 
@@ -198,7 +196,7 @@ void main() {
   });
 
   testWidgets('Сессия завершается, «Повторить» сбрасывает раунд', (tester) async {
-    StorageService.emptyScreenMode = false; // нужен AppBar «Раунд X» и кнопки снизу
+    StorageService.isBlindModeGlobal = false; // нужен AppBar «Раунд X» и кнопки снизу
     await pumpApp(tester);
     await openFromMenu(tester, 'Старт сессии');
     for (int i = 0; i < 6; i++) {
@@ -278,7 +276,6 @@ void main() {
 
   testWidgets('Слепая сетка ВЫКЛ — во время раундов видно поле', (tester) async {
     StorageService.isBlindModeGlobal = false;
-    StorageService.emptyScreenMode = true; // включён, но без слепого режима поле не прячет
     await pumpApp(tester);
     await openFromMenu(tester, 'Старт сессии');
     for (int i = 0; i < 6; i++) {

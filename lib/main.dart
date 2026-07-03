@@ -246,11 +246,10 @@ class StorageService {
 
   static bool controlsOnLeft = true;
   static bool devModeActive = false;
+  // Слепой режим: во время раундов поле скрыто, остаются только кнопки
+  // «Дальше»/«Стоп» (в ландшафте — зоны нажатия). Включён по умолчанию, награда ×2.
   static bool isBlindModeGlobal = true;
   static bool showSpeechText = false;
-  // Режим «пустой экран»: во время раундов скрыто всё, кроме двух кнопок
-  // «Дальше»/«Стоп». Включён по умолчанию.
-  static bool emptyScreenMode = true;
 
   // Голос диктора: false — мужской (assets/voice/), true — женский
   // (assets/voice/female/). По умолчанию мужской.
@@ -287,7 +286,6 @@ class StorageService {
     isBlindModeGlobal = prefs.getBool('isBlindModeGlobal') ?? true;
     devModeActive = prefs.getBool('devModeActive') ?? false;
     showSpeechText = prefs.getBool('showSpeechText') ?? false;
-    emptyScreenMode = prefs.getBool('emptyScreenMode') ?? true;
     voiceFemale = prefs.getBool('voiceFemale') ?? false;
     TTSEngine.volume = prefs.getDouble('ttsVolume') ?? 0.9;
 
@@ -375,7 +373,6 @@ class StorageService {
     await prefs.setBool('isBlindModeGlobal', isBlindModeGlobal);
     await prefs.setBool('devModeActive', devModeActive);
     await prefs.setBool('showSpeechText', showSpeechText);
-    await prefs.setBool('emptyScreenMode', emptyScreenMode);
     await prefs.setBool('voiceFemale', voiceFemale);
     await prefs.setDouble('ttsVolume', TTSEngine.volume);
 
@@ -2347,19 +2344,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 const Divider(height: 1),
                 SwitchListenable(
-                  title: 'Режим «пустой экран»',
-                  subtitle:
-                      'В слепом режиме во время раундов скрыто всё, кроме кнопок «Дальше»/«Стоп»',
-                  value: StorageService.emptyScreenMode,
-                  onChanged: (val) {
-                    setState(() {
-                      StorageService.emptyScreenMode = val;
-                      StorageService.syncWithDisk();
-                    });
-                  },
-                ),
-                const Divider(height: 1),
-                SwitchListenable(
                   title: 'Женский голос диктора',
                   subtitle: 'Переключить озвучку: выкл — мужской, вкл — женский',
                   value: StorageService.voiceFemale,
@@ -2759,8 +2743,9 @@ class _GameScreenState extends State<GameScreen> {
 
       _generateNextStep();
     } else {
-      // В режиме «пустой экран» расходники не работают — Щит не срабатывает.
-      if (!StorageService.emptyScreenMode &&
+      // В слепом режиме поле скрыто — Щит не срабатывает (виден только в
+      // обычном режиме с полем).
+      if (!StorageService.isBlindModeGlobal &&
           StorageService.itemShieldCount > 0) {
         setState(() {
           StorageService.itemShieldCount--;
@@ -2912,16 +2897,15 @@ class _GameScreenState extends State<GameScreen> {
   Widget build(BuildContext context) {
     final activeTheme = getActiveTheme();
 
-    // «Пустой экран» (только кнопки, без поля) имеет смысл лишь в слепом режиме:
-    // если слепая сетка выключена, игрок хочет видеть поле — показываем его.
-    final bool emptyRoundsView =
-        StorageService.emptyScreenMode &&
+    // В слепом режиме во время раундов показываем только кнопки (без поля).
+    // Слепая сетка выключена — игрок видит поле.
+    final bool blindRoundsView =
         StorageService.isBlindModeGlobal &&
         !isMemorizing &&
         !isGameOver &&
         !superGameMode;
 
-    final Widget scaffold = emptyRoundsView
+    final Widget scaffold = blindRoundsView
         ? Scaffold(body: _buildEmptyRoundsBody())
         : Scaffold(
             appBar: AppBar(
