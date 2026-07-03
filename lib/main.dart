@@ -5,7 +5,7 @@ import 'dart:typed_data' show BytesBuilder, ByteData;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_tts/flutter_tts.dart';
-import 'package:audioplayers/audioplayers.dart' show AudioPlayer, DeviceFileSource, ReleaseMode;
+import 'package:audioplayers/audioplayers.dart' show AudioPlayer, DeviceFileSource;
 import 'package:audio_session/audio_session.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:device_info_plus/device_info_plus.dart';
@@ -829,9 +829,6 @@ class VoiceService {
 
   static Future<void> init() async {
     await TTSEngine.init();
-    // Держим нативный плеер «живым» между клипами — меньше задержка
-    // на старте следующего клипа, речь звучит плавнее.
-    await _player.setReleaseMode(ReleaseMode.stop);
     // Проверяем, добавлен ли пакет нейро-озвучки. Если файлов ещё нет —
     // работаем на системном голосе, приложение не ломается.
     try {
@@ -843,6 +840,7 @@ class VoiceService {
   }
 
   static Future<void> stop() async {
+    _playToken++; // прерываем любую «в полёте» озвучку, чтобы она не заиграла
     try {
       await _player.stop();
     } catch (_) {}
@@ -857,31 +855,47 @@ class VoiceService {
     await _speak(move.clips, move.text);
   }
 
-  static int _seq = 0;
+  // Монотонный токен последней озвучки. Каждый новый вызов _speak его
+  // увеличивает; более старые вызовы, увидев, что токен сменился, прерываются —
+  // так две фразы не накладываются друг на друга.
+  static int _playToken = 0;
 
   static Future<void> _speak(List<String> clipIds, String fallbackText) async {
+    final int myToken = ++_playToken;
     if (!_neuralReady) {
       await TTSEngine.speak(fallbackText);
       return;
     }
     await TTSEngine.stop();
     try {
-      await _player.stop();
+      // Полностью сбрасываем прошлый источник, иначе при переключении на новую
+      // фразу плеер успевает коротко проиграть начало предыдущей озвучки.
+      try {
+        await _player.release();
+      } catch (_) {}
+      if (myToken != _playToken) return; // нас уже сменил новый вызов
+
       // Склеиваем нужные клипы в один временный файл и проигрываем одним
       // воспроизведением — между «...пойти на», «одну клетку вверх», «и на»,
       // «три клетки влево» нет паузы плеера на подготовку каждого файла.
       final builder = BytesBuilder();
       for (final id in clipIds) {
         final data = await _loadClip(id);
-        builder.add(data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes));
+        if (myToken != _playToken) return; // прервали во время загрузки
+        builder.add(
+          data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
+        );
       }
       final dir = await getTemporaryDirectory();
       // ротация имени, чтобы не упереться в блокировку предыдущего файла
-      final path = '${dir.path}/mf_phrase_${_seq++ % 3}.mp3';
+      final path = '${dir.path}/mf_phrase_${myToken % 4}.mp3';
       await File(path).writeAsBytes(builder.toBytes(), flush: true);
+      if (myToken != _playToken) return; // прервали во время записи
+
       await _player.setVolume(TTSEngine.volume);
       await _player.play(DeviceFileSource(path));
     } catch (e) {
+      if (myToken != _playToken) return;
       debugPrint("VoiceService: ошибка склейки/воспроизведения ($e), откат на TTS");
       await TTSEngine.speak(fallbackText);
     }

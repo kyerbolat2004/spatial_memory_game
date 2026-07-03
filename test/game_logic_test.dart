@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
 import 'package:spatial_memory_game/main.dart';
@@ -91,6 +93,30 @@ void main() {
       
       isInside = nextX >= 0 && nextX < gridSize && nextY >= 0 && nextY < gridSize;
       expect(isInside, isFalse); // Должен вернуть FALSE
+    });
+
+    test('Voice assets: каждый клип манифеста есть в муж. и жен. наборах', () {
+      // Готовность релиза: приложение склеивает фразу из клипов по манифесту.
+      // Если хотя бы одного .mp3 не хватает (муж. в assets/voice/ или жен. в
+      // assets/voice/female/), фраза озвучится системным голосом — это баг.
+      final manifest =
+          jsonDecode(File('assets/voice/voice_manifest.json').readAsStringSync())
+              as Map<String, dynamic>;
+      final clips = (manifest['clips'] as List).cast<Map<String, dynamic>>();
+
+      final missingMale = <String>[];
+      final missingFemale = <String>[];
+      for (final c in clips) {
+        final file = c['file'] as String;
+        if (!File('assets/voice/$file').existsSync()) missingMale.add(file);
+        if (!File('assets/voice/female/$file').existsSync()) {
+          missingFemale.add(file);
+        }
+      }
+
+      expect(clips.length, 122, reason: 'ожидается 122 клипа в манифесте');
+      expect(missingMale, isEmpty, reason: 'нет мужских: $missingMale');
+      expect(missingFemale, isEmpty, reason: 'нет женских: $missingFemale');
     });
   });
 }
