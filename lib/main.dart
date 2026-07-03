@@ -1611,7 +1611,11 @@ class _UpgradesScreenState extends State<UpgradesScreen> {
         children: [
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            color: activeTheme.primaryColor.withValues(alpha: 0.1),
+            // decoration (а не color:) — чтобы SwitchListTile ниже не оказался
+            // внутри ColoredBox (иначе Flutter ругается на невидимые ink-эффекты).
+            decoration: BoxDecoration(
+              color: activeTheme.primaryColor.withValues(alpha: 0.1),
+            ),
             child: Column(
               children: [
                 Row(
@@ -1634,24 +1638,32 @@ class _UpgradesScreenState extends State<UpgradesScreen> {
                   ],
                 ),
                 const Divider(height: 16),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text(
-                    'Слепой режим (Blind Mode)',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                // Собственный Material под ListTile — иначе он рисует ink на
+                // цветном контейнере выше, и Flutter выдаёт предупреждение.
+                Material(
+                  type: MaterialType.transparency,
+                  child: SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text(
+                      'Слепой режим (Blind Mode)',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                    subtitle: Text(
+                      'Границы ячеек исчезают после старта. Награда за ход: x2 $coin',
+                      style: const TextStyle(fontSize: 11, color: Colors.grey),
+                    ),
+                    activeThumbColor: activeTheme.primaryColor,
+                    value: StorageService.isBlindModeGlobal,
+                    onChanged: (val) {
+                      setState(() {
+                        StorageService.isBlindModeGlobal = val;
+                        StorageService.syncWithDisk();
+                      });
+                    },
                   ),
-                  subtitle: Text(
-                    'Границы ячеек исчезают после старта. Награда за ход: x2 $coin',
-                    style: const TextStyle(fontSize: 11, color: Colors.grey),
-                  ),
-                  activeThumbColor: activeTheme.primaryColor,
-                  value: StorageService.isBlindModeGlobal,
-                  onChanged: (val) {
-                    setState(() {
-                      StorageService.isBlindModeGlobal = val;
-                      StorageService.syncWithDisk();
-                    });
-                  },
                 ),
               ],
             ),
