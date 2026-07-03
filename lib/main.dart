@@ -2315,7 +2315,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 SwitchListenable(
                   title: 'Режим «пустой экран»',
                   subtitle:
-                      'Во время раундов скрыто всё, кроме кнопок «Дальше»/«Стоп»',
+                      'В слепом режиме во время раундов скрыто всё, кроме кнопок «Дальше»/«Стоп»',
                   value: StorageService.emptyScreenMode,
                   onChanged: (val) {
                     setState(() {
@@ -2878,10 +2878,11 @@ class _GameScreenState extends State<GameScreen> {
   Widget build(BuildContext context) {
     final activeTheme = getActiveTheme();
 
-    // Во время раундов (не запоминание, не конец игры, не супер-игра) при
-    // включённом режиме «пустой экран» показываем только полотно и две кнопки.
+    // «Пустой экран» (только кнопки, без поля) имеет смысл лишь в слепом режиме:
+    // если слепая сетка выключена, игрок хочет видеть поле — показываем его.
     final bool emptyRoundsView =
         StorageService.emptyScreenMode &&
+        StorageService.isBlindModeGlobal &&
         !isMemorizing &&
         !isGameOver &&
         !superGameMode;

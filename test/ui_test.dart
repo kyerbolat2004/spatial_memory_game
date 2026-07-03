@@ -275,4 +275,18 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Недостаточно монет!'), findsOneWidget);
   });
+
+  testWidgets('Слепая сетка ВЫКЛ — во время раундов видно поле', (tester) async {
+    StorageService.isBlindModeGlobal = false;
+    StorageService.emptyScreenMode = true; // включён, но без слепого режима поле не прячет
+    await pumpApp(tester);
+    await openFromMenu(tester, 'Старт сессии');
+    for (int i = 0; i < 6; i++) {
+      await tester.pump(const Duration(seconds: 1));
+    }
+    await tester.pump(const Duration(milliseconds: 300));
+    // Обычный вид с AppBar «Раунд X» (а не пустой экран) и кнопки решения на месте.
+    expect(find.textContaining('Раунд'), findsWidgets);
+    expect(find.text('Дальше'), findsWidgets);
+  });
 }
