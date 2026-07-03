@@ -43,3 +43,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# локальные превью озвучки (не для репозитория)
+voice_preview/

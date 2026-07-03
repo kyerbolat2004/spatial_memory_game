@@ -861,6 +861,10 @@ class VoiceService {
   // увеличивает; более старые вызовы, увидев, что токен сменился, прерываются —
   // так две фразы не накладываются друг на друга.
   static int _playToken = 0;
+  // Кэш временной папки и последней громкости — чтобы не дёргать плагины
+  // на каждой фразе (меньше задержка перед стартом озвучки).
+  static Directory? _tmpDir;
+  static double _lastVol = -1;
 
   static Future<void> _speak(List<String> clipIds, String fallbackText) async {
     final int myToken = ++_playToken;
@@ -889,13 +893,16 @@ class VoiceService {
           data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
         );
       }
-      final dir = await getTemporaryDirectory();
+      _tmpDir ??= await getTemporaryDirectory();
       // ротация имени, чтобы не упереться в блокировку предыдущего файла
-      final path = '${dir.path}/mf_phrase_${myToken % 4}.mp3';
+      final path = '${_tmpDir!.path}/mf_phrase_${myToken % 4}.mp3';
       await File(path).writeAsBytes(builder.toBytes(), flush: true);
       if (myToken != _playToken) return; // прервали во время записи
 
-      await _player.setVolume(TTSEngine.volume);
+      if (_lastVol != TTSEngine.volume) {
+        await _player.setVolume(TTSEngine.volume);
+        _lastVol = TTSEngine.volume;
+      }
       await _player.play(DeviceFileSource(path));
     } catch (e) {
       if (myToken != _playToken) return;
@@ -908,8 +915,35 @@ class VoiceService {
 // =========================================================================
 // ГЛАВНЫЙ КЛАСС ПРИЛОЖЕНИЯ
 // =========================================================================
-class SpatialMemoryGame extends StatelessWidget {
+class SpatialMemoryGame extends StatefulWidget {
   const SpatialMemoryGame({super.key});
+
+  @override
+  State<SpatialMemoryGame> createState() => _SpatialMemoryGameState();
+}
+
+class _SpatialMemoryGameState extends State<SpatialMemoryGame>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Глушим озвучку, когда приложение уходит в фон / экран блокируется,
+    // иначе диктор продолжает говорить после выхода из игры.
+    if (state != AppLifecycleState.resumed) {
+      VoiceService.stop();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
