@@ -444,7 +444,11 @@ class DifficultyConfig {
   final int gridSize;
   final int objectsCount;
   final int obstaclesCount;
-  final int maxStep;
+  // Суммарное число «шагов» (клеток) за ход: от minSteps до maxSteps.
+  // Шаг = одна клетка. Ход может идти по одной оси или по двум сегментам
+  // (в любые стороны), а сложность = сумма пройденных клеток.
+  final int minSteps;
+  final int maxSteps;
   final int unlockCost;
   final int winsRequiredFromPrevious;
 
@@ -453,20 +457,11 @@ class DifficultyConfig {
     required this.gridSize,
     required this.objectsCount,
     required this.obstaclesCount,
-    required this.maxStep,
+    required this.minSteps,
+    required this.maxSteps,
     required this.unlockCost,
     required this.winsRequiredFromPrevious,
   });
-
-  // Минимальный шаг хода: на 1 уровне (сетка 3х3) допустим шаг в одну клетку
-  // (в сочетании с maxStep=2 это даёт ход на 1 или 2 клетки), начиная со
-  // 2 уровня одинарные шаги исключены — минимум две клетки.
-  int get minStep => level == 1 ? 1 : 2;
-
-  // Сдвоенные ходы в одном направлении («вверх и ещё на вверх») имеют смысл
-  // только на достаточно крупных сетках, иначе суммарный сдвиг всегда выводит
-  // объект за поле. Включаем с уровня 5 (сетка 6х6 и больше).
-  bool get allowDoubleMove => gridSize >= 6;
 
   // Награда считается от фактического количества объектов/преград в матче —
   // если игрок уменьшил сложность через настройку, награда падает пропорционально.
@@ -478,7 +473,7 @@ class DifficultyConfig {
     if (gridSize >= 10) points += 20;
     if (objects > 1) points += 5;
     if (obstacles > 0) points += 5 * obstacles;
-    if (maxStep > 1) points += 5 * (maxStep - 1);
+    if (maxSteps > 1) points += 5 * (maxSteps - 1);
     return points;
   }
 
@@ -491,7 +486,8 @@ final List<DifficultyConfig> difficulties = [
     gridSize: 3,
     objectsCount: 1,
     obstaclesCount: 0,
-    maxStep: 2, // уровень 1: шаг 1 или 2 клетки (minStep=1)
+    minSteps: 1, // 3x3: допустимы одиночные шаги
+    maxSteps: 2,
     unlockCost: 0,
     winsRequiredFromPrevious: 0,
   ),
@@ -500,7 +496,8 @@ final List<DifficultyConfig> difficulties = [
     gridSize: 4,
     objectsCount: 2,
     obstaclesCount: 0,
-    maxStep: 2,
+    minSteps: 2,
+    maxSteps: 2,
     unlockCost: 1000,
     winsRequiredFromPrevious: 4,
   ),
@@ -509,7 +506,8 @@ final List<DifficultyConfig> difficulties = [
     gridSize: 4,
     objectsCount: 1,
     obstaclesCount: 1,
-    maxStep: 2,
+    minSteps: 2,
+    maxSteps: 2,
     unlockCost: 2500,
     winsRequiredFromPrevious: 4,
   ),
@@ -518,7 +516,8 @@ final List<DifficultyConfig> difficulties = [
     gridSize: 5,
     objectsCount: 2,
     obstaclesCount: 1,
-    maxStep: 2,
+    minSteps: 2,
+    maxSteps: 3,
     unlockCost: 5000,
     winsRequiredFromPrevious: 5,
   ),
@@ -527,7 +526,8 @@ final List<DifficultyConfig> difficulties = [
     gridSize: 6,
     objectsCount: 2,
     obstaclesCount: 2,
-    maxStep: 2,
+    minSteps: 3,
+    maxSteps: 3,
     unlockCost: 9000,
     winsRequiredFromPrevious: 5,
   ),
@@ -536,7 +536,8 @@ final List<DifficultyConfig> difficulties = [
     gridSize: 7,
     objectsCount: 1,
     obstaclesCount: 3,
-    maxStep: 2,
+    minSteps: 3,
+    maxSteps: 3,
     unlockCost: 14000,
     winsRequiredFromPrevious: 6,
   ),
@@ -545,7 +546,8 @@ final List<DifficultyConfig> difficulties = [
     gridSize: 8,
     objectsCount: 2,
     obstaclesCount: 3,
-    maxStep: 3,
+    minSteps: 3,
+    maxSteps: 4,
     unlockCost: 20000,
     winsRequiredFromPrevious: 6,
   ),
@@ -554,7 +556,8 @@ final List<DifficultyConfig> difficulties = [
     gridSize: 9,
     objectsCount: 1,
     obstaclesCount: 4,
-    maxStep: 3,
+    minSteps: 4,
+    maxSteps: 4,
     unlockCost: 28000,
     winsRequiredFromPrevious: 7,
   ),
@@ -563,7 +566,8 @@ final List<DifficultyConfig> difficulties = [
     gridSize: 9,
     objectsCount: 2,
     obstaclesCount: 5,
-    maxStep: 4,
+    minSteps: 4,
+    maxSteps: 4,
     unlockCost: 38000,
     winsRequiredFromPrevious: 7,
   ),
@@ -572,11 +576,35 @@ final List<DifficultyConfig> difficulties = [
     gridSize: 10,
     objectsCount: 2,
     obstaclesCount: 6,
-    maxStep: 4,
+    minSteps: 4,
+    maxSteps: 4,
     unlockCost: 50000,
     winsRequiredFromPrevious: 8,
   ),
 ];
+
+// Возвращает длины сегментов хода (в клетках) для уровня.
+//  • Сумма клеток = случайное число в [minSteps, maxSteps] уровня.
+//  • Ход — это 1 или 2 сегмента (каждый ≤ 4 клетки — лимит озвучки).
+//  • Со 2-го уровня хотя бы один сегмент ≥ 2 клетки (нет ходов из одних
+//    одиночных шагов); на 1-м уровне (3×3) одиночные шаги разрешены.
+// Направления сегментам назначаются отдельно (любые из четырёх).
+List<int> generateMoveSegments(DifficultyConfig config, Random rand) {
+  final int total =
+      config.minSteps + rand.nextInt(config.maxSteps - config.minSteps + 1);
+  final bool isL1 = config.level == 1;
+
+  final List<List<int>> splits = [];
+  if (total <= 4) splits.add([total]); // одиночное направление
+  for (int a = 1; a < total; a++) {
+    final int b = total - a;
+    if (a > 4 || b > 4) continue;
+    if (!isL1 && a < 2 && b < 2) continue;
+    splits.add([a, b]);
+  }
+  if (splits.isEmpty) splits.add([total.clamp(1, 4)]);
+  return splits[rand.nextInt(splits.length)];
+}
 
 // =========================================================================
 // КЛАССЫ СОСТОЯНИЙ И ИГРОВОЙ ДВИЖОК
@@ -1834,12 +1862,10 @@ class _UpgradesScreenState extends State<UpgradesScreen> {
                           '• Статичных преград: $effObstacles из ${config.obstaclesCount}',
                         ),
                         Text(
-                          config.minStep == config.maxStep
-                              ? '• Шаг хода: ${config.maxStep} клет.'
-                              : '• Шаг хода: ${config.minStep}–${config.maxStep} клет.',
+                          config.minSteps == config.maxSteps
+                              ? '• Шагов за ход: ${config.maxSteps}'
+                              : '• Шагов за ход: ${config.minSteps}–${config.maxSteps}',
                         ),
-                        if (config.allowDoubleMove)
-                          const Text('• Возможны сдвоенные ходы'),
                         Text(
                           '• Награда за ход: ${config.pointsFor(effObjects, effObstacles)} $coin',
                         ),
@@ -1904,28 +1930,36 @@ class _UpgradesScreenState extends State<UpgradesScreen> {
                         ],
                         const Divider(height: 20),
                         Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
-                              'Идеальных побед на уровне: $wins',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12,
-                              ),
-                            ),
-                            if (!isUnlocked && config.level > 1)
-                              Text(
-                                'Требуется побед на Ур. ${config.level - 1}: $prevWins / ${config.winsRequiredFromPrevious}',
-                                style: TextStyle(
-                                  color:
-                                      prevWins >=
-                                          config.winsRequiredFromPrevious
-                                      ? Colors.green
-                                      : Colors.red,
+                            Flexible(
+                              child: Text(
+                                'Идеальных побед на уровне: $wins',
+                                style: const TextStyle(
                                   fontWeight: FontWeight.bold,
-                                  fontSize: 11,
+                                  fontSize: 12,
                                 ),
                               ),
+                            ),
+                            if (!isUnlocked && config.level > 1) ...[
+                              const SizedBox(width: 8),
+                              Flexible(
+                                child: Text(
+                                  'Требуется побед на Ур. ${config.level - 1}: $prevWins / ${config.winsRequiredFromPrevious}',
+                                  textAlign: TextAlign.end,
+                                  style: TextStyle(
+                                    color:
+                                        prevWins >=
+                                            config.winsRequiredFromPrevious
+                                        ? Colors.green
+                                        : Colors.red,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ],
@@ -2612,40 +2646,16 @@ class _GameScreenState extends State<GameScreen> {
     String fullObjName = activeObj.id == 1 ? theme.obj1 : theme.obj2;
 
     final config = widget.config;
-    final int minStep = config.minStep;
-    final int maxStep = config.maxStep;
 
-    // Случайный шаг в пределах [minStep, maxStep].
-    int randStep() => minStep + _random.nextInt(maxStep - minStep + 1);
+    // Длины сегментов хода (в клетках): сумма = бюджет шагов уровня.
+    final List<int> chosen = generateMoveSegments(config, _random);
 
-    final List<MoveSegment> segments = [];
-
-    // С вероятностью 30% (на крупных сетках) — сдвоенный ход в одном направлении:
-    // например «вверх и ещё на вверх». Иначе — обычный перпендикулярный ход.
-    final bool doubleMove =
-        config.allowDoubleMove && _random.nextInt(100) < 30;
-
-    if (doubleMove) {
-      const dirs = ["влево", "вправо", "вверх", "вниз"];
-      final dir = dirs[_random.nextInt(dirs.length)];
-      segments.add(MoveSegment(dir, randStep()));
-      segments.add(MoveSegment(dir, randStep()));
-    } else {
-      // Каждая ось либо стоит (0), либо идёт на [minStep..maxStep].
-      // Гарантируем, что хотя бы одна ось движется.
-      int stepX = 0;
-      int stepY = 0;
-      while (stepX == 0 && stepY == 0) {
-        stepX = _random.nextBool() ? randStep() : 0;
-        stepY = _random.nextBool() ? randStep() : 0;
-      }
-      if (stepX > 0) {
-        segments.add(MoveSegment(_random.nextBool() ? "влево" : "вправо", stepX));
-      }
-      if (stepY > 0) {
-        segments.add(MoveSegment(_random.nextBool() ? "вверх" : "вниз", stepY));
-      }
-    }
+    // Каждому сегменту — случайное направление из четырёх (может совпадать —
+    // «и ещё на», быть противоположным или перпендикулярным — «и на»).
+    const List<String> dirs = ["влево", "вправо", "вверх", "вниз"];
+    final List<MoveSegment> segments = [
+      for (final cells in chosen) MoveSegment(dirs[_random.nextInt(4)], cells),
+    ];
 
     // Суммарный сдвиг по сегментам — проверяем только финальную клетку.
     int nextX = activeObj.x;

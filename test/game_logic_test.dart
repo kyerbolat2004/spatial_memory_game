@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
 import 'package:spatial_memory_game/main.dart';
@@ -31,36 +32,64 @@ void main() {
       expect(level1.gridSize, 3);
       expect(level1.objectsCount, 1);
       expect(level1.obstaclesCount, 0);
-      expect(level1.maxStep, 2);
+      expect(level1.maxSteps, 2);
 
       // Проверяем хардкорный пятый уровень сложности
       final level5 = difficulties.firstWhere((d) => d.level == 5);
       expect(level5.gridSize, 6);
       expect(level5.objectsCount, 2);
       expect(level5.obstaclesCount, 2);
-      expect(level5.maxStep, 2);
+      expect(level5.maxSteps, 3);
     });
 
-    test('Step Constraints: 1-2 cells on level 1, min 2 from level 2', () {
-      // На 1 уровне (сетка 3х3) ход на 1 или 2 клетки (minStep=1, maxStep=2).
+    test('Step Constraints: сумма шагов по уровням', () {
+      // На 1 уровне (сетка 3х3) сумма шагов 1..2 (допустимы одиночные).
       final level1 = difficulties.firstWhere((d) => d.level == 1);
-      expect(level1.minStep, 1);
-      expect(level1.maxStep, 2);
-      expect(level1.allowDoubleMove, isFalse);
+      expect(level1.minSteps, 1);
+      expect(level1.maxSteps, 2);
 
-      // Со 2 уровня одинарные шаги исключены: минимум две клетки.
+      // Со 2 уровня минимум суммы шагов — 2 (одиночных ходов нет).
       for (final d in difficulties.where((d) => d.level >= 2)) {
-        expect(d.minStep, 2, reason: 'Уровень ${d.level}: минимум 2 клетки');
-        expect(
-          d.maxStep >= d.minStep,
-          isTrue,
-          reason: 'Уровень ${d.level}: maxStep должен быть >= minStep',
-        );
+        expect(d.minSteps, greaterThanOrEqualTo(2),
+            reason: 'Уровень ${d.level}: минимум 2 шага');
+        expect(d.maxSteps, greaterThanOrEqualTo(d.minSteps),
+            reason: 'Уровень ${d.level}: maxSteps >= minSteps');
+        expect(d.maxSteps, lessThanOrEqualTo(4),
+            reason: 'Уровень ${d.level}: не больше 4 (лимит озвучки)');
       }
 
-      // Сдвоенные ходы разрешены только на крупных сетках (с уровня 5).
-      final level5 = difficulties.firstWhere((d) => d.level == 5);
-      expect(level5.allowDoubleMove, isTrue);
+      // Ожидаемая таблица сумм шагов по уровням 1..10.
+      const expected = {
+        1: [1, 2], 2: [2, 2], 3: [2, 2], 4: [2, 3], 5: [3, 3],
+        6: [3, 3], 7: [3, 4], 8: [4, 4], 9: [4, 4], 10: [4, 4],
+      };
+      for (final d in difficulties) {
+        expect([d.minSteps, d.maxSteps], expected[d.level],
+            reason: 'Уровень ${d.level}: неверная таблица шагов');
+      }
+    });
+
+    test('generateMoveSegments: сумма в бюджете, правила соблюдены', () {
+      final rand = Random(12345);
+      for (final d in difficulties) {
+        for (int i = 0; i < 500; i++) {
+          final seg = generateMoveSegments(d, rand);
+          final total = seg.fold<int>(0, (s, e) => s + e);
+          // сумма клеток в бюджете уровня
+          expect(total, inInclusiveRange(d.minSteps, d.maxSteps),
+              reason: 'L${d.level} seg=$seg total=$total');
+          // 1 или 2 сегмента, каждый 1..4 клетки
+          expect(seg.length, inInclusiveRange(1, 2));
+          for (final s in seg) {
+            expect(s, inInclusiveRange(1, 4), reason: 'L${d.level} seg=$seg');
+          }
+          // со 2-го уровня хотя бы один сегмент >= 2 (нет ходов из одних 1-к)
+          if (d.level >= 2) {
+            expect(seg.any((s) => s >= 2), isTrue,
+                reason: 'L${d.level}: все сегменты <2 -> $seg');
+          }
+        }
+      }
     });
 
     test('Reward scales down with fewer objects/obstacles', () {
