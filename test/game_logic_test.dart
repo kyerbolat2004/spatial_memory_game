@@ -69,26 +69,41 @@ void main() {
       }
     });
 
-    test('generateMoveSegments: сумма в бюджете, правила соблюдены', () {
+    test('generateMoveSegments: объект всегда проходит ровно бюджет шагов', () {
       final rand = Random(12345);
       for (final d in difficulties) {
-        for (int i = 0; i < 500; i++) {
+        final Set<int> totalsSeen = {};
+        final Set<String> outputsSeen = {};
+        // Много прогонов, чтобы охватить все возможные исходы генератора.
+        for (int i = 0; i < 20000; i++) {
           final seg = generateMoveSegments(d, rand);
           final total = seg.fold<int>(0, (s, e) => s + e);
-          // сумма клеток в бюджете уровня
+          totalsSeen.add(total);
+          outputsSeen.add(seg.join(','));
+
+          // ГЛАВНОЕ: сумма пройденных клеток строго = бюджету уровня.
           expect(total, inInclusiveRange(d.minSteps, d.maxSteps),
-              reason: 'L${d.level} seg=$seg total=$total');
-          // 1 или 2 сегмента, каждый 1..4 клетки
-          expect(seg.length, inInclusiveRange(1, 2));
+              reason: 'L${d.level}: сумма шагов $total вне бюджета, seg=$seg');
+          // 1 или 2 сегмента, каждый 1..4 клетки (лимит озвучки).
+          expect(seg.length, inInclusiveRange(1, 2), reason: 'L${d.level} $seg');
           for (final s in seg) {
             expect(s, inInclusiveRange(1, 4), reason: 'L${d.level} seg=$seg');
           }
-          // со 2-го уровня хотя бы один сегмент >= 2 (нет ходов из одних 1-к)
+          // Со 2-го уровня хотя бы один сегмент >= 2 (нет ходов из одних 1-к).
           if (d.level >= 2) {
             expect(seg.any((s) => s >= 2), isTrue,
                 reason: 'L${d.level}: все сегменты <2 -> $seg');
           }
         }
+        // Бюджет должен покрываться целиком (все значения достижимы).
+        for (int t = d.minSteps; t <= d.maxSteps; t++) {
+          expect(totalsSeen.contains(t), isTrue,
+              reason: 'L${d.level}: сумма $t недостижима');
+        }
+        // Никогда не выходим за границы бюджета.
+        expect(totalsSeen.every((t) => t >= d.minSteps && t <= d.maxSteps),
+            isTrue,
+            reason: 'L${d.level}: замечены суммы вне бюджета $totalsSeen');
       }
     });
 
