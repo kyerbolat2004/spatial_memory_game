@@ -117,7 +117,7 @@ void main() {
       expect(read(), !before, reason: 'переключатель "$title" не сменился');
     }
 
-    await toggle('Глобальная слепая сетка', () => StorageService.isBlindModeGlobal);
+    await toggle('Слепой режим', () => StorageService.isBlindModeGlobal);
     await toggle('Панель управления слева', () => StorageService.controlsOnLeft);
     await toggle('Отображение текста хода', () => StorageService.showSpeechText);
     await toggle('Женский голос диктора', () => StorageService.voiceFemale);

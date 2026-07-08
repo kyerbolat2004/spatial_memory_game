@@ -1735,14 +1735,14 @@ class _UpgradesScreenState extends State<UpgradesScreen> {
                   child: SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     title: const Text(
-                      'Слепой режим (Blind Mode)',
+                      'Слепой режим',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
                       ),
                     ),
                     subtitle: Text(
-                      'Границы ячеек исчезают после старта. Награда за ход: x2 $coin',
+                      'Во время раундов поле скрыто — только кнопки (награда ×2 $coin)',
                       style: const TextStyle(fontSize: 11, color: Colors.grey),
                     ),
                     activeThumbColor: activeTheme.primaryColor,
@@ -2342,8 +2342,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 const Divider(height: 1),
                 SwitchListenable(
-                  title: 'Глобальная слепая сетка',
-                  subtitle: 'Размывать границы с самого начала (x2 $coin)',
+                  title: 'Слепой режим',
+                  subtitle: 'Во время раундов поле скрыто — только кнопки (награда ×2 $coin)',
                   value: StorageService.isBlindModeGlobal,
                   onChanged: (val) {
                     setState(() {
@@ -2406,8 +2406,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 20),
           const Text(
-            'Настройки Громкости TTS:',
+            'Громкость голоса диктора',
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
+          const Text(
+            'Насколько громко диктор произносит ходы и подсказки',
+            style: TextStyle(fontSize: 12, color: Colors.grey),
           ),
           Slider(
             value: TTSEngine.volume,
@@ -3086,6 +3090,24 @@ class _GameScreenState extends State<GameScreen> {
       );
     }
 
+    // Текст текущего хода — если включена настройка «Отображение текста хода».
+    // Показывает то же, что произнёс диктор (позиции не раскрывает).
+    Widget speechLabel() {
+      if (!StorageService.showSpeechText) return const SizedBox.shrink();
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        child: Text(
+          currentMove?.speechText ?? '',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: isDark ? Colors.white70 : Colors.black87,
+          ),
+        ),
+      );
+    }
+
     return Container(
       width: double.infinity,
       height: double.infinity,
@@ -3107,6 +3129,7 @@ class _GameScreenState extends State<GameScreen> {
                       child: backButton(),
                     ),
                   ),
+                  speechLabel(),
                   Expanded(
                     child: Row(
                       children: [
@@ -3137,6 +3160,8 @@ class _GameScreenState extends State<GameScreen> {
                   padding: const EdgeInsets.all(16),
                   child: Column(
                     children: [
+                      const SizedBox(height: 44), // отступ под кнопку выхода
+                      speechLabel(),
                       const Spacer(),
                       Row(
                         children: [
