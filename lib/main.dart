@@ -15,6 +15,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.light);
 // Глобальный уведомитель для динамической смены цветовой палитры активной игровой темы
 final ValueNotifier<String> activeThemeIdNotifier = ValueNotifier('microworld');
+// Уведомитель дневного страйка — чтобы главное меню обновляло значение
+// (в т.ч. при возврате приложения из фона на следующий день).
+final ValueNotifier<int> streakNotifier = ValueNotifier(1);
 
 // =========================================================================
 // СОВМЕСТИМОСТЬ ЭМОДЗИ
@@ -362,6 +365,15 @@ class StorageService {
 
     await prefs.setString('lastLoginDate', todayZero.toIso8601String());
     await prefs.setInt('currentStreak', currentStreak);
+    streakNotifier.value = currentStreak;
+  }
+
+  // Пересчитать страйк «на лету» — вызывается при возврате приложения из фона,
+  // чтобы значение обновлялось, даже если приложение не перезапускалось
+  // (Android часто держит его в памяти между днями).
+  static Future<void> refreshDailyStreak() async {
+    final prefs = await SharedPreferences.getInstance();
+    await _checkDailyStreak(prefs);
   }
 
   static Future<void> syncWithDisk() async {
@@ -963,10 +975,14 @@ class _SpatialMemoryGameState extends State<SpatialMemoryGame>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Глушим озвучку, когда приложение уходит в фон / экран блокируется,
-    // иначе диктор продолжает говорить после выхода из игры.
     if (state != AppLifecycleState.resumed) {
+      // Глушим озвучку, когда приложение уходит в фон / экран блокируется,
+      // иначе диктор продолжает говорить после выхода из игры.
       VoiceService.stop();
+    } else {
+      // При возвращении в приложение пересчитываем дневной страйк — чтобы он
+      // обновлялся и без полного перезапуска (Android держит приложение живым).
+      StorageService.refreshDailyStreak();
     }
   }
 
@@ -1021,35 +1037,10 @@ class MainMenuScreen extends StatefulWidget {
 }
 
 class _MainMenuScreenState extends State<MainMenuScreen> {
-  int logoTaps = 0;
-
   @override
   void initState() {
     super.initState();
     VoiceService.init();
-  }
-
-  void _onLogoTap() {
-    setState(() {
-      logoTaps++;
-      if (logoTaps >= 5) {
-        StorageService.devModeActive = !StorageService.devModeActive;
-        StorageService.syncWithDisk();
-        logoTaps = 0;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              StorageService.devModeActive
-                  ? "Режим Тестировщика активирован! Открыт весь контент и включен рентген."
-                  : "Режим Тестировщика отключен.",
-            ),
-            backgroundColor: StorageService.devModeActive
-                ? Colors.green
-                : Colors.red,
-          ),
-        );
-      }
-    });
   }
 
   void _showHowToPlay() {
@@ -1207,11 +1198,9 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                  GestureDetector(
-                    onTap: _onLogoTap,
-                    child: Hero(
-                      tag: 'game_logo',
-                      child: Column(
+                  Hero(
+                    tag: 'game_logo',
+                    child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           ShaderMask(
@@ -1251,7 +1240,6 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                         ],
                       ),
                     ),
-                  ),
                   const SizedBox(height: 10),
                   Center(
                     child: Container(
@@ -1272,11 +1260,14 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                             size: 20,
                           ),
                           const SizedBox(width: 6),
-                          Text(
-                            'Страйк: ${StorageService.currentStreak} дн.',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.orange,
+                          ValueListenableBuilder<int>(
+                            valueListenable: streakNotifier,
+                            builder: (context, streak, _) => Text(
+                              'Страйк: $streak дн.',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.orange,
+                              ),
                             ),
                           ),
                         ],
@@ -1646,6 +1637,21 @@ class _UpgradesScreenState extends State<UpgradesScreen> {
     );
   }
 
+  // Компактный чип-характеристика уровня (сетка/объекты/преграды/шаги/награда).
+  Widget _statChip(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.grey.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+
   // Степпер «− значение +» для настройки количества объектов/преград.
   // Кнопки блокируются на границах [min, max] — нельзя превысить максимум уровня.
   Widget _buildCounterRow({
@@ -1796,6 +1802,10 @@ class _UpgradesScreenState extends State<UpgradesScreen> {
                   );
                 } else if (isUnlocked) {
                   trailingWidget = ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
                     onPressed: () {
                       setState(() {
                         StorageService.activeDifficulty = config.level;
@@ -1808,16 +1818,22 @@ class _UpgradesScreenState extends State<UpgradesScreen> {
                   trailingWidget = ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.orange,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      visualDensity: VisualDensity.compact,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
                     onPressed: () => _tryUnlock(config),
                     icon: const Icon(
                       Icons.lock_open,
-                      size: 16,
+                      size: 14,
                       color: Colors.white,
                     ),
                     label: Text(
                       '${config.unlockCost} $coin',
-                      style: const TextStyle(color: Colors.white),
+                      style: const TextStyle(color: Colors.white, fontSize: 13),
                     ),
                   );
                 }
@@ -1842,32 +1858,38 @@ class _UpgradesScreenState extends State<UpgradesScreen> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              'Уровень сложности ${config.level}',
+                              'Уровень ${config.level}',
                               style: const TextStyle(
                                 fontWeight: FontWeight.bold,
-                                fontSize: 18,
+                                fontSize: 17,
                               ),
                             ),
                             trailingWidget,
                           ],
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          '• Размер сетки: ${config.gridSize} x ${config.gridSize}',
-                        ),
-                        Text(
-                          '• Объектов на поле: $effObjects из ${config.objectsCount}',
-                        ),
-                        Text(
-                          '• Статичных преград: $effObstacles из ${config.obstaclesCount}',
-                        ),
-                        Text(
-                          config.minSteps == config.maxSteps
-                              ? '• Шагов за ход: ${config.maxSteps}'
-                              : '• Шагов за ход: ${config.minSteps}–${config.maxSteps}',
-                        ),
-                        Text(
-                          '• Награда за ход: ${config.pointsFor(effObjects, effObstacles)} $coin',
+                        const SizedBox(height: 10),
+                        // Характеристики уровня компактными чипами (эргономичнее,
+                        // чем 5 отдельных строк — карточка стала ниже).
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            _statChip('${config.gridSize}×${config.gridSize}'),
+                            _statChip(
+                              'объектов $effObjects/${config.objectsCount}',
+                            ),
+                            _statChip(
+                              'преград $effObstacles/${config.obstaclesCount}',
+                            ),
+                            _statChip(
+                              config.minSteps == config.maxSteps
+                                  ? 'шагов ${config.maxSteps}'
+                                  : 'шагов ${config.minSteps}–${config.maxSteps}',
+                            ),
+                            _statChip(
+                              '+${config.pointsFor(effObjects, effObstacles)} $coin',
+                            ),
+                          ],
                         ),
                         if (isUnlocked && canCustomize) ...[
                           const SizedBox(height: 10),
@@ -2076,13 +2098,14 @@ class _ShopScreenState extends State<ShopScreen> {
                     fontSize: 18,
                   ),
                 ),
-                Row(
-                  children: [
-                    Text('🛡️ x${StorageService.itemShieldCount}'),
-                    const SizedBox(width: 14),
-                    Text('👁️ x${StorageService.itemXrayCount}'),
-                  ],
-                ),
+                if (!StorageService.isBlindModeGlobal)
+                  Row(
+                    children: [
+                      Text('🛡️ x${StorageService.itemShieldCount}'),
+                      const SizedBox(width: 14),
+                      Text('👁️ x${StorageService.itemXrayCount}'),
+                    ],
+                  ),
               ],
             ),
           ),
@@ -2092,35 +2115,42 @@ class _ShopScreenState extends State<ShopScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Вспомогательные расходники:',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildItemCard(
-                          icon: '🛡️',
-                          title: 'Щит Спасения',
-                          desc: 'Защищает от 1 промаха',
-                          price: 1000,
-                          onBuy: () => _buyConsumable('shield', 1000),
-                        ),
+                  // Расходники работают только в обычном режиме с видимым полем.
+                  // В слепом режиме (по умолчанию) они бесполезны — прячем их.
+                  if (!StorageService.isBlindModeGlobal) ...[
+                    const Text(
+                      'Вспомогательные расходники:',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _buildItemCard(
-                          icon: '👁️',
-                          title: 'Рентген-визор',
-                          desc: 'Показывает объекты на 3 сек',
-                          price: 1500,
-                          onBuy: () => _buyConsumable('xray', 1500),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildItemCard(
+                            icon: '🛡️',
+                            title: 'Щит Спасения',
+                            desc: 'Защищает от 1 промаха',
+                            price: 1000,
+                            onBuy: () => _buyConsumable('shield', 1000),
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildItemCard(
+                            icon: '👁️',
+                            title: 'Рентген-визор',
+                            desc: 'Показывает объекты на 3 сек',
+                            price: 1500,
+                            onBuy: () => _buyConsumable('xray', 1500),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                  ],
                   const Text(
                     'Комплексные Игровые Темы:',
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
@@ -2352,18 +2382,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     });
                   },
                 ),
-                const Divider(height: 1),
-                SwitchListenable(
-                  title: 'Панель управления слева',
-                  subtitle: 'Адаптация интерфейса в ландшафте',
-                  value: StorageService.controlsOnLeft,
-                  onChanged: (val) {
-                    setState(() {
-                      StorageService.controlsOnLeft = val;
-                      StorageService.syncWithDisk();
-                    });
-                  },
-                ),
+                // «Панель управления слева» влияет только на обычный режим с
+                // видимым полем в ландшафте — в слепом режиме прячем, чтобы не путать.
+                if (!StorageService.isBlindModeGlobal) ...[
+                  const Divider(height: 1),
+                  SwitchListenable(
+                    title: 'Панель управления слева',
+                    subtitle: 'Адаптация интерфейса в ландшафте',
+                    value: StorageService.controlsOnLeft,
+                    onChanged: (val) {
+                      setState(() {
+                        StorageService.controlsOnLeft = val;
+                        StorageService.syncWithDisk();
+                      });
+                    },
+                  ),
+                ],
                 const Divider(height: 1),
                 SwitchListenable(
                   title: 'Отображение текста хода',

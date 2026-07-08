@@ -137,6 +137,7 @@ void main() {
   });
 
   testWidgets('Магазин: покупка расходников и выбор темы', (tester) async {
+    StorageService.isBlindModeGlobal = false; // расходники видны только вне слепого режима
     await pumpApp(tester);
     await openFromMenu(tester, 'Магазин тем');
     // Покупка щита.
@@ -265,6 +266,7 @@ void main() {
   testWidgets('Магазин: не хватает монет — показывается диалог', (tester) async {
     StorageService.devModeActive = false;
     StorageService.userTotalBank = 0;
+    StorageService.isBlindModeGlobal = false; // расходники видны только вне слепого режима
     await pumpApp(tester);
     await openFromMenu(tester, 'Магазин тем');
     final shield = find.widgetWithText(ElevatedButton, '1000 $coin');
