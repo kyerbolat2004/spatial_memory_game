@@ -181,6 +181,26 @@ GameTheme getActiveTheme() {
   );
 }
 
+// Акцентные цвета тем нарочно яркие (tealAccent, amberAccent, cyanAccent) —
+// на белом фоне такие линии почти не видны. В светлой теме затемняем акцент до
+// читаемой светлоты, в тёмной оставляем как есть.
+Color readableAccent(Color accent, Brightness brightness) {
+  if (brightness == Brightness.dark) return accent;
+  final hsl = HSLColor.fromColor(accent);
+  return hsl.withLightness((hsl.lightness * 0.55).clamp(0.0, 1.0)).toColor();
+}
+
+// Базовые Colors.orange / Colors.green на белом дают контраст около 2:1 —
+// текст читается тускло. Берём тёмные оттенки в светлой теме и светлые
+// в тёмной.
+Color okGreen(BuildContext c) => Theme.of(c).brightness == Brightness.dark
+    ? Colors.greenAccent.shade400
+    : Colors.green.shade800;
+
+Color hotOrange(BuildContext c) => Theme.of(c).brightness == Brightness.dark
+    ? Colors.orange.shade300
+    : Colors.orange.shade900;
+
 // =========================================================================
 // КЛАСС СЕССИИ ИСТОРИИ ИГР
 // =========================================================================
@@ -449,10 +469,12 @@ class StorageService {
     await prefs.setBool('isDarkMode', themeNotifier.value == ThemeMode.dark);
   }
 
-  static void addSessionToHistory(int score, bool isPerfect) {
+  // level — уровень, который реально играли (widget.config.level). Брать
+  // activeDifficulty нельзя: он может отличаться от запущенного конфига, и
+  // тогда победа засчиталась бы не тому уровню.
+  static void addSessionToHistory(int score, bool isPerfect, int level) {
     if (isPerfect) {
-      difficultyWins[activeDifficulty] =
-          (difficultyWins[activeDifficulty] ?? 0) + 1;
+      difficultyWins[level] = (difficultyWins[level] ?? 0) + 1;
     }
 
     userTotalBank += score;
@@ -462,7 +484,7 @@ class StorageService {
       date: _getFormattedDate(DateTime.now()),
       score: score,
       themeName: getActiveTheme().name,
-      difficultyLevel: activeDifficulty,
+      difficultyLevel: level,
       isPerfectSession: isPerfect,
     );
 
@@ -1183,7 +1205,18 @@ class VoiceService {
         await _player.setVolume(TTSEngine.volume);
         _lastVol = TTSEngine.volume;
       }
+      // Последняя проверка перед стартом: между записью файла и play() успевает
+      // пройти setVolume, и если в это окно игрок вышел с экрана, фраза иначе
+      // заиграла бы уже после stop().
+      if (myToken != _playToken) return;
       await _player.play(DeviceFileSource(path));
+      // Плеер стартует асинхронно: если нас остановили, пока он раскручивался,
+      // глушим звук сами — иначе диктор договорит на пустом экране.
+      if (myToken != _playToken) {
+        try {
+          await _player.stop();
+        } catch (_) {}
+      }
     } catch (e) {
       if (myToken != _playToken) return;
       debugPrint("VoiceService: ошибка склейки/воспроизведения ($e), откат на TTS");
@@ -1243,19 +1276,34 @@ class _SpatialMemoryGameState extends State<SpatialMemoryGame>
               debugShowCheckedModeBanner: false,
               themeMode: currentMode,
               theme: ThemeData(
-                colorScheme: ColorScheme.fromSeed(
-                  seedColor: activeThemeData.primaryColor,
-                  brightness: Brightness.light,
-                ),
+                colorScheme:
+                    ColorScheme.fromSeed(
+                      seedColor: activeThemeData.primaryColor,
+                      brightness: Brightness.light,
+                    ).copyWith(
+                      // Акцент темы теперь живой: он приходит в схему цветов и
+                      // рисует разметку игрового поля. На светлом фоне яркие
+                      // акценты (tealAccent, amberAccent) не видны — затемняем.
+                      secondary: readableAccent(
+                        activeThemeData.accentColor,
+                        Brightness.light,
+                      ),
+                    ),
                 scaffoldBackgroundColor: const Color(0xFFF9FBFA),
                 cardColor: Colors.white,
                 useMaterial3: true,
               ),
               darkTheme: ThemeData(
-                colorScheme: ColorScheme.fromSeed(
-                  seedColor: activeThemeData.primaryColor,
-                  brightness: Brightness.dark,
-                ),
+                colorScheme:
+                    ColorScheme.fromSeed(
+                      seedColor: activeThemeData.primaryColor,
+                      brightness: Brightness.dark,
+                    ).copyWith(
+                      secondary: readableAccent(
+                        activeThemeData.accentColor,
+                        Brightness.dark,
+                      ),
+                    ),
                 scaffoldBackgroundColor: const Color(0xFF131722),
                 cardColor: const Color(0xFF1E222D),
                 useMaterial3: true,
@@ -1362,7 +1410,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  'Учитывается финальная клетка после хода.',
+                  'Учитывается финальная клетка после хода. Верный «Стоп» тоже засчитывается как пройденный ход — объект остаётся на месте, а монет за него начисляется половина.',
                   style: TextStyle(fontSize: 12, color: Colors.grey),
                 ),
                 const SizedBox(height: 8),
@@ -1497,9 +1545,9 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.local_fire_department,
-                            color: Colors.orange,
+                            color: hotOrange(context),
                             size: 20,
                           ),
                           const SizedBox(width: 6),
@@ -1507,9 +1555,9 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                             valueListenable: streakNotifier,
                             builder: (context, streak, _) => Text(
                               'Страйк: $streak дн.',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontWeight: FontWeight.bold,
-                                color: Colors.orange,
+                                color: hotOrange(context),
                               ),
                             ),
                           ),
@@ -1575,7 +1623,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                   _buildMenuButton(
                     context,
                     icon: Icons.shopping_bag_rounded,
-                    label: 'Магазин тем',
+                    label: 'Магазин',
                     color: const Color(0xFFF59E0B),
                     onTap: () {
                       Navigator.push(
@@ -1799,10 +1847,10 @@ class GameHistoryScreen extends StatelessWidget {
                       children: [
                         Text(
                           '+${session.score}',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
-                            color: Colors.green,
+                            color: okGreen(context),
                           ),
                         ),
                         const SizedBox(width: 4),
@@ -2329,7 +2377,7 @@ class _ShopScreenState extends State<ShopScreen> {
   Widget build(BuildContext context) {
     final activeTheme = getActiveTheme();
     return Scaffold(
-      appBar: AppBar(title: const Text('Магазин предметов'), centerTitle: true),
+      appBar: AppBar(title: const Text('Магазин'), centerTitle: true),
       body: Column(
         children: [
           Container(
@@ -2345,14 +2393,13 @@ class _ShopScreenState extends State<ShopScreen> {
                     fontSize: 18,
                   ),
                 ),
-                if (!StorageService.isBlindModeGlobal)
-                  Row(
-                    children: [
-                      Text('🛡️ x${StorageService.itemShieldCount}'),
-                      const SizedBox(width: 14),
-                      Text('👁️ x${StorageService.itemXrayCount}'),
-                    ],
-                  ),
+                Row(
+                  children: [
+                    Text('🛡️ x${StorageService.itemShieldCount}'),
+                    const SizedBox(width: 14),
+                    Text('👁️ x${StorageService.itemXrayCount}'),
+                  ],
+                ),
               ],
             ),
           ),
@@ -2362,42 +2409,41 @@ class _ShopScreenState extends State<ShopScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Расходники работают только в обычном режиме с видимым полем.
-                  // В слепом режиме (по умолчанию) они бесполезны — прячем их.
-                  if (!StorageService.isBlindModeGlobal) ...[
-                    const Text(
-                      'Вспомогательные расходники:',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
+                  // Расходники работают в любом режиме: щит отменяет ошибку,
+                  // рентген возвращает поле на 3 секунды (в слепом режиме это
+                  // как раз его главный смысл).
+                  const Text(
+                    'Вспомогательные расходники:',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildItemCard(
+                          icon: '🛡️',
+                          title: 'Щит Спасения',
+                          desc: 'Защищает от 1 промаха',
+                          price: 1000,
+                          onBuy: () => _buyConsumable('shield', 1000),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildItemCard(
-                            icon: '🛡️',
-                            title: 'Щит Спасения',
-                            desc: 'Защищает от 1 промаха',
-                            price: 1000,
-                            onBuy: () => _buyConsumable('shield', 1000),
-                          ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildItemCard(
+                          icon: '👁️',
+                          title: 'Рентген-визор',
+                          desc: 'Показывает объекты на 3 сек',
+                          price: 1500,
+                          onBuy: () => _buyConsumable('xray', 1500),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _buildItemCard(
-                            icon: '👁️',
-                            title: 'Рентген-визор',
-                            desc: 'Показывает объекты на 3 сек',
-                            price: 1500,
-                            onBuy: () => _buyConsumable('xray', 1500),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-                  ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
                   const Text(
                     'Комплексные Игровые Темы:',
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
@@ -3082,10 +3128,9 @@ class _GameScreenState extends State<GameScreen> {
 
       _generateNextStep();
     } else {
-      // В слепом режиме поле скрыто — Щит не срабатывает (виден только в
-      // обычном режиме с полем).
-      if (!StorageService.isBlindModeGlobal &&
-          StorageService.itemShieldCount > 0) {
+      // Щит спасает от поражения в любом режиме: поле ему не нужно, он просто
+      // отменяет ошибку и даёт переотвечать на тот же ход.
+      if (StorageService.itemShieldCount > 0) {
         setState(() {
           StorageService.itemShieldCount--;
         });
@@ -3119,7 +3164,11 @@ class _GameScreenState extends State<GameScreen> {
   void _recordSession(bool perfect) {
     if (_sessionRecorded) return;
     _sessionRecorded = true;
-    StorageService.addSessionToHistory(coinsEarned, perfect);
+    StorageService.addSessionToHistory(
+      coinsEarned,
+      perfect,
+      widget.config.level,
+    );
   }
 
   void _triggerGameOver() {
@@ -3269,12 +3318,17 @@ class _GameScreenState extends State<GameScreen> {
     final activeTheme = getActiveTheme();
 
     // В слепом режиме во время раундов показываем только кнопки (без поля).
-    // Слепая сетка выключена — игрок видит поле.
+    // Исключения, когда поле нужно вернуть: рентген (он ровно для того и
+    // покупается — на 3 секунды показать реальные позиции) и режим
+    // тестировщика (иначе полупрозрачные подсказки и лог координат негде
+    // рисовать, и режим бесполезен при настройках по умолчанию).
     final bool blindRoundsView =
         StorageService.isBlindModeGlobal &&
         !isMemorizing &&
         !isGameOver &&
-        !superGameMode;
+        !superGameMode &&
+        !xrayActive &&
+        !StorageService.devModeActive;
 
     final Widget scaffold = blindRoundsView
         ? Scaffold(body: _buildEmptyRoundsBody())
@@ -3351,10 +3405,11 @@ class _GameScreenState extends State<GameScreen> {
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) return;
         VoiceService.stop();
-        // Выход из супер-игры любым способом (в т.ч. системной кнопкой
-        // «назад» после победы): основная фаза пройдена без ошибок, поэтому
-        // заработанное сохраняется. Повторную запись гасит _recordSession.
-        if (superGameMode) _recordSession(true);
+        // Выход из матча любым способом: заработанное сохраняется — ровно так
+        // же, как при поражении (там монеты тоже начисляются). Идеальной
+        // сессия считается только если основная фаза пройдена целиком, то есть
+        // дошли до супер-игры. Повторную запись гасит _recordSession.
+        if (superGameMode || coinsEarned > 0) _recordSession(superGameMode);
       },
       child: scaffold,
     );
@@ -3382,6 +3437,21 @@ class _GameScreenState extends State<GameScreen> {
         VoiceService.stop();
         Navigator.pop(context);
       },
+    );
+
+    // Рентген в слепом режиме: единственная кнопка, возвращающая поле на
+    // 3 секунды. В обычном режиме она живёт в AppBar, а здесь AppBar нет.
+    Widget xrayButton() => Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: TextButton.icon(
+        style: TextButton.styleFrom(
+          foregroundColor: isDark ? Colors.white70 : Colors.black87,
+          visualDensity: VisualDensity.compact,
+        ),
+        onPressed: _activateXray,
+        icon: const Icon(Icons.remove_red_eye_outlined, size: 20),
+        label: Text('Рентген (${StorageService.itemXrayCount})'),
+      ),
     );
 
     // Ландшафт: половина экрана — одна большая кликабельная зона.
@@ -3489,12 +3559,16 @@ class _GameScreenState extends State<GameScreen> {
               // Зоны на весь экран только в горизонтальном режиме.
               return Column(
                 children: [
-                  // Верхняя полоса с кнопкой выхода — НЕ входит в зоны нажатия.
+                  // Верхняя полоса с кнопками выхода и рентгена — НЕ входит
+                  // в зоны нажатия «Дальше»/«Стоп».
                   SizedBox(
                     height: 48,
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: backButton(),
+                    child: Row(
+                      children: [
+                        backButton(),
+                        const Spacer(),
+                        xrayButton(),
+                      ],
                     ),
                   ),
                   speechLabel(),
@@ -3523,12 +3597,18 @@ class _GameScreenState extends State<GameScreen> {
             // Портрет — как было: стрелка сверху-слева, кнопки внизу.
             return Stack(
               children: [
-                Align(alignment: Alignment.topLeft, child: backButton()),
+                Row(
+                  children: [
+                    backButton(),
+                    const Spacer(),
+                    xrayButton(),
+                  ],
+                ),
                 Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(
                     children: [
-                      const SizedBox(height: 44), // отступ под кнопку выхода
+                      const SizedBox(height: 44), // отступ под верхнюю полосу
                       speechLabel(),
                       const Spacer(),
                       Row(
@@ -3562,6 +3642,10 @@ class _GameScreenState extends State<GameScreen> {
   Widget _buildGridArea(GameTheme activeTheme) {
     bool isBlind = StorageService.isBlindModeGlobal;
 
+    // Акцентный цвет темы: рамка поля и клетки. Именно он визуально отличает
+    // «Океан» от «Киберпанка» — на светлом фоне уже приведён к читаемому.
+    final Color accent = Theme.of(context).colorScheme.secondary;
+
     return Center(
       child: AspectRatio(
         aspectRatio: 1.0,
@@ -3572,7 +3656,7 @@ class _GameScreenState extends State<GameScreen> {
             color: Theme.of(context).cardColor,
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: activeTheme.primaryColor.withValues(alpha: 0.3),
+              color: accent.withValues(alpha: 0.45),
               width: 2,
             ),
             boxShadow: [
@@ -3609,7 +3693,10 @@ class _GameScreenState extends State<GameScreen> {
                   isMemorizing ||
                   xrayActive ||
                   isGameOver ||
-                  superGameMode;
+                  superGameMode ||
+                  // Тестировщику нужна разметка: иначе полупрозрачные подсказки
+                  // висят в пустоте, без клеток.
+                  StorageService.devModeActive;
               Color cellBgColor = Colors.transparent;
 
               if (showGridBorders) {
@@ -3697,7 +3784,7 @@ class _GameScreenState extends State<GameScreen> {
                     borderRadius: BorderRadius.circular(6),
                     border: Border.all(
                       color: showGridBorders
-                          ? activeTheme.primaryColor.withValues(alpha: 0.15)
+                          ? accent.withValues(alpha: 0.3)
                           : Colors.transparent,
                     ),
                   ),
@@ -3712,6 +3799,7 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   Widget _buildControlsPanel(GameTheme activeTheme) {
+    final bool isDarkTheme = Theme.of(context).brightness == Brightness.dark;
     if (isGameOver) {
       return Padding(
         padding: const EdgeInsets.all(24.0),
@@ -3776,12 +3864,12 @@ class _GameScreenState extends State<GameScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Text(
+            Text(
               '🔥 СУПЕР-ИГРА УДВОЕНИЯ 🔥',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: Colors.orange,
+                color: hotOrange(context),
               ),
               textAlign: TextAlign.center,
             ),
@@ -3807,8 +3895,8 @@ class _GameScreenState extends State<GameScreen> {
             ] else if (superGameSuccess) ...[
               Text(
                 'ПОТРЯСАЮЩЕ! Вы нашли все цели! Награда х2 $coin!',
-                style: const TextStyle(
-                  color: Colors.green,
+                style: TextStyle(
+                  color: okGreen(context),
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -3842,10 +3930,10 @@ class _GameScreenState extends State<GameScreen> {
             Text(
               'Запоминание позиций... $memorizationTime сек.',
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: Colors.orange,
+                color: hotOrange(context),
               ),
             ),
           ] else ...[
@@ -3959,7 +4047,9 @@ class _GameScreenState extends State<GameScreen> {
                     vertical: 3,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.orange,
+                    // Белым по яркому оранжевому — контраст ~2:1. Берём тёмный
+                    // оттенок, чтобы подпись читалась.
+                    color: Colors.orange.shade800,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: const Text(
@@ -3979,7 +4069,11 @@ class _GameScreenState extends State<GameScreen> {
               height: 70,
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.05),
+                // Раньше был «чёрный 5%» — в тёмной теме панель сливалась с
+                // карточкой, а текст blueGrey был почти нечитаем.
+                color: isDarkTheme
+                    ? Colors.white.withValues(alpha: 0.06)
+                    : Colors.black.withValues(alpha: 0.05),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: ListView.builder(
@@ -3989,10 +4083,12 @@ class _GameScreenState extends State<GameScreen> {
                 itemBuilder: (context, idx) {
                   return Text(
                     devLogs[devLogs.length - 1 - idx],
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: 'Courier',
                       fontSize: 10,
-                      color: Colors.blueGrey,
+                      color: isDarkTheme
+                          ? Colors.lightBlueAccent.shade100
+                          : Colors.blueGrey.shade800,
                     ),
                   );
                 },

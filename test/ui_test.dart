@@ -64,7 +64,7 @@ void main() {
     for (final label in const [
       'Старт сессии',
       'Сложность и Прогресс',
-      'Магазин тем',
+      'Магазин',
       'Инструкция к игре',
       'Журнал игр',
       'Настройки',
@@ -77,7 +77,7 @@ void main() {
     await pumpApp(tester);
     for (final entry in const {
       'Сложность и Прогресс': 'Сложность и Прогресс',
-      'Магазин тем': 'Магазин предметов',
+      'Магазин': 'Магазин',
       'Журнал игр': 'Журнал игр',
       'Настройки': 'Настройки',
     }.entries) {
@@ -137,24 +137,25 @@ void main() {
   });
 
   testWidgets('Магазин: покупка расходников и выбор темы', (tester) async {
-    StorageService.isBlindModeGlobal = false; // расходники видны только вне слепого режима
+    // Расходники доступны в любом режиме, включая слепой (он же по умолчанию).
+    StorageService.isBlindModeGlobal = true;
     await pumpApp(tester);
-    await openFromMenu(tester, 'Магазин тем');
+    await openFromMenu(tester, 'Магазин');
     // Покупка щита.
     final shield = find.widgetWithText(ElevatedButton, '1000 $coin');
-    if (shield.evaluate().isNotEmpty) {
-      final before = StorageService.itemShieldCount;
-      await tester.tap(shield.first);
-      await tester.pumpAndSettle();
-      expect(StorageService.itemShieldCount, before + 1);
-    }
+    expect(shield, findsWidgets, reason: 'расходники должны быть в магазине');
+    final before = StorageService.itemShieldCount;
+    await tester.tap(shield.first);
+    await tester.pumpAndSettle();
+    expect(StorageService.itemShieldCount, before + 1);
+
     // Применение любой доступной темы (devMode -> кнопки «Применить»).
     final apply = find.widgetWithText(ElevatedButton, 'Применить');
     if (apply.evaluate().isNotEmpty) {
       await tester.ensureVisible(apply.first);
       await tester.tap(apply.first);
       await tester.pumpAndSettle();
-      expect(find.text('Магазин предметов'), findsWidgets);
+      expect(find.text('Магазин'), findsWidgets);
     }
   });
 
@@ -266,9 +267,8 @@ void main() {
   testWidgets('Магазин: не хватает монет — показывается диалог', (tester) async {
     StorageService.devModeActive = false;
     StorageService.userTotalBank = 0;
-    StorageService.isBlindModeGlobal = false; // расходники видны только вне слепого режима
     await pumpApp(tester);
-    await openFromMenu(tester, 'Магазин тем');
+    await openFromMenu(tester, 'Магазин');
     final shield = find.widgetWithText(ElevatedButton, '1000 $coin');
     await tester.ensureVisible(shield.first);
     await tester.tap(shield.first);
@@ -303,6 +303,67 @@ void main() {
 
     // Дренаж таймера блокировки, чтобы не осталось pending timer.
     await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('Слепой режим: Рентген возвращает поле на 3 секунды', (tester) async {
+    StorageService.isBlindModeGlobal = true;
+    StorageService.devModeActive = false; // иначе поле видно и без рентгена
+    StorageService.itemXrayCount = 1;
+    await pumpApp(tester);
+    await openFromMenu(tester, 'Старт сессии');
+    for (int i = 0; i < 6; i++) {
+      await tester.pump(const Duration(seconds: 1));
+    }
+    await tester.pump(const Duration(milliseconds: 300));
+
+    // Пустое полотно: поля нет, но кнопка рентгена доступна.
+    expect(find.byType(GridView), findsNothing);
+    final xray = find.textContaining('Рентген');
+    expect(xray, findsWidgets, reason: 'в слепом режиме нужна кнопка рентгена');
+
+    await tester.tap(xray.first);
+    await tester.pump(const Duration(milliseconds: 100));
+    // Рентген израсходован, поле показано.
+    expect(StorageService.itemXrayCount, 0);
+    expect(find.byType(GridView), findsOneWidget, reason: 'поле должно вернуться');
+
+    // Через 3 секунды поле снова скрывается.
+    await tester.pump(const Duration(seconds: 4));
+    expect(find.byType(GridView), findsNothing);
+    await tester.pump(const Duration(milliseconds: 600)); // дренаж блокировки
+  });
+
+  testWidgets('Выход из матча сохраняет заработанные монеты', (tester) async {
+    StorageService.isBlindModeGlobal = false;
+    StorageService.itemShieldCount = 0; // щит не должен спасать от ошибки
+    await pumpApp(tester);
+    await openFromMenu(tester, 'Старт сессии');
+    for (int i = 0; i < 6; i++) {
+      await tester.pump(const Duration(seconds: 1));
+    }
+    await tester.pump(const Duration(milliseconds: 300));
+
+    // Играем, пока не заработаем монеты (либо пока сессия не закончится).
+    for (int i = 0; i < 6 && StorageService.userTotalBank == 0; i++) {
+      final next = find.text('Дальше');
+      final stop = find.text('Стоп');
+      if (next.evaluate().isEmpty) break;
+      // Чередуем ответы, чтобы хоть один оказался верным.
+      await tester.tap(i.isEven ? next.first : stop.first);
+      await tester.pump(const Duration(milliseconds: 600));
+    }
+
+    // Если сессия ещё идёт и монеты заработаны — выходим кнопкой «назад».
+    if (find.text('Дальше').evaluate().isNotEmpty) {
+      final earned = find.textContaining('Заработано:');
+      expect(earned, findsWidgets);
+      final bankBefore = StorageService.userTotalBank;
+      await tester.tap(find.byIcon(Icons.arrow_back).first);
+      await tester.pumpAndSettle();
+      // Монеты за пройденные ходы не сгорают — как и при поражении.
+      expect(StorageService.userTotalBank, greaterThanOrEqualTo(bankBefore));
+    }
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('Сброс прогресса обнуляет победы и настройки матча', (tester) async {
