@@ -15,6 +15,12 @@
       "group": "static"
     },
     {
+      "id": "game_over_safe",
+      "file": "game_over_safe.mp3",
+      "text": "Ой! Вы ошиблись. Путь был чист — объект мог пройти.",
+      "group": "static"
+    },
+    {
       "id": "perfect_finish",
       "file": "perfect_finish.mp3",
       "text": "Отличная работа! Идеальная сессия. Запуск супер-игры.",
@@ -39,9 +45,21 @@
       "group": "static"
     },
     {
+      "id": "found_single",
+      "file": "found_single.mp3",
+      "text": "Правильно! Объект найден. Монеты удвоены!",
+      "group": "static"
+    },
+    {
       "id": "miss_empty",
       "file": "miss_empty.mp3",
       "text": "Промах! Это была пустая ячейка.",
+      "group": "static"
+    },
+    {
+      "id": "miss_wrong_order",
+      "file": "miss_wrong_order.mp3",
+      "text": "Промах! Это второй объект — сначала найдите первый.",
       "group": "static"
     },
     {
