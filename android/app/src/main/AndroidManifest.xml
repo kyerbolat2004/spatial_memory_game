@@ -41,5 +41,11 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- Обязательно для flutter_tts на Android 11+ (package visibility):
+             без этого приложение не видит системный TTS-движок, и запасной
+             голос диктора молчит. См. README flutter_tts. -->
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE"/>
+        </intent>
     </queries>
 </manifest>
