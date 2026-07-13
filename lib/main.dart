@@ -457,10 +457,13 @@ class DifficultyConfig {
   final int objectsCount;
   final int obstaclesCount;
   // Суммарное число «шагов» (клеток) за ход: от minSteps до maxSteps.
-  // Шаг = одна клетка. Ход может идти по одной оси или по двум сегментам
-  // (в любые стороны), а сложность = сумма пройденных клеток.
+  // Шаг = одна клетка. Ход — 1 или 2 сегмента (прямые, Г-образные,
+  // двойные «и ещё на», обратные), сложность = сумма пройденных клеток.
   final int minSteps;
   final int maxSteps;
+  // Число ходов в раунде: выборка из пула вариаций без повторов
+  // (маленький пул уровней 2-3 проходится несколько раз).
+  final int movesPerRound;
   final int unlockCost;
   final int winsRequiredFromPrevious;
 
@@ -471,6 +474,7 @@ class DifficultyConfig {
     required this.obstaclesCount,
     required this.minSteps,
     required this.maxSteps,
+    required this.movesPerRound,
     required this.unlockCost,
     required this.winsRequiredFromPrevious,
   });
@@ -478,6 +482,8 @@ class DifficultyConfig {
   // Награда считается от фактического количества объектов/преград в матче —
   // если игрок уменьшил сложность через настройку, награда падает пропорционально.
   int pointsFor(int objects, int obstacles) {
+    // Уровень 1 — фиксированная награда из таблицы экономики ТЗ: 10 🪙 за ход.
+    if (level == 1) return 10;
     int points = 10;
     if (gridSize >= 4) points += 5;
     if (gridSize >= 6) points += 10;
@@ -498,8 +504,9 @@ final List<DifficultyConfig> difficulties = [
     gridSize: 3,
     objectsCount: 1,
     obstaclesCount: 0,
-    minSteps: 1, // 3x3: допустимы одиночные шаги
+    minSteps: 1, // 3x3: допустимы одиночные шаги (своё ТЗ уровня 1)
     maxSteps: 2,
+    movesPerRound: 16,
     unlockCost: 0,
     winsRequiredFromPrevious: 0,
   ),
@@ -510,6 +517,7 @@ final List<DifficultyConfig> difficulties = [
     obstaclesCount: 0,
     minSteps: 2,
     maxSteps: 2,
+    movesPerRound: 16, // пул из 4 прямых ходов проходится 4 раза
     unlockCost: 1000,
     winsRequiredFromPrevious: 4,
   ),
@@ -520,6 +528,7 @@ final List<DifficultyConfig> difficulties = [
     obstaclesCount: 1,
     minSteps: 2,
     maxSteps: 2,
+    movesPerRound: 16, // пул из 4 прямых ходов проходится 4 раза
     unlockCost: 2500,
     winsRequiredFromPrevious: 4,
   ),
@@ -530,6 +539,7 @@ final List<DifficultyConfig> difficulties = [
     obstaclesCount: 1,
     minSteps: 2,
     maxSteps: 3,
+    movesPerRound: 24,
     unlockCost: 5000,
     winsRequiredFromPrevious: 5,
   ),
@@ -538,8 +548,9 @@ final List<DifficultyConfig> difficulties = [
     gridSize: 6,
     objectsCount: 2,
     obstaclesCount: 2,
-    minSteps: 3,
+    minSteps: 2,
     maxSteps: 3,
+    movesPerRound: 20,
     unlockCost: 9000,
     winsRequiredFromPrevious: 5,
   ),
@@ -548,8 +559,9 @@ final List<DifficultyConfig> difficulties = [
     gridSize: 7,
     objectsCount: 1,
     obstaclesCount: 3,
-    minSteps: 3,
+    minSteps: 2,
     maxSteps: 3,
+    movesPerRound: 20,
     unlockCost: 14000,
     winsRequiredFromPrevious: 6,
   ),
@@ -558,8 +570,9 @@ final List<DifficultyConfig> difficulties = [
     gridSize: 8,
     objectsCount: 2,
     obstaclesCount: 3,
-    minSteps: 3,
+    minSteps: 2,
     maxSteps: 4,
+    movesPerRound: 48,
     unlockCost: 20000,
     winsRequiredFromPrevious: 6,
   ),
@@ -568,8 +581,9 @@ final List<DifficultyConfig> difficulties = [
     gridSize: 9,
     objectsCount: 1,
     obstaclesCount: 4,
-    minSteps: 4,
+    minSteps: 2,
     maxSteps: 4,
+    movesPerRound: 28,
     unlockCost: 28000,
     winsRequiredFromPrevious: 7,
   ),
@@ -578,8 +592,9 @@ final List<DifficultyConfig> difficulties = [
     gridSize: 9,
     objectsCount: 2,
     obstaclesCount: 5,
-    minSteps: 4,
+    minSteps: 2,
     maxSteps: 4,
+    movesPerRound: 28,
     unlockCost: 38000,
     winsRequiredFromPrevious: 7,
   ),
@@ -588,34 +603,227 @@ final List<DifficultyConfig> difficulties = [
     gridSize: 10,
     objectsCount: 2,
     obstaclesCount: 6,
-    minSteps: 4,
+    minSteps: 2,
     maxSteps: 4,
+    movesPerRound: 28,
     unlockCost: 50000,
     winsRequiredFromPrevious: 8,
   ),
 ];
 
-// Возвращает длины сегментов хода (в клетках) для уровня.
-//  • Сумма клеток = случайное число в [minSteps, maxSteps] уровня.
-//  • Ход — это 1 или 2 сегмента (каждый ≤ 4 клетки — лимит озвучки).
-//  • Со 2-го уровня хотя бы один сегмент ≥ 2 клетки (нет ходов из одних
-//    одиночных шагов); на 1-м уровне (3×3) одиночные шаги разрешены.
-// Направления сегментам назначаются отдельно (любые из четырёх).
-List<int> generateMoveSegments(DifficultyConfig config, Random rand) {
-  final int total =
-      config.minSteps + rand.nextInt(config.maxSteps - config.minSteps + 1);
-  final bool isL1 = config.level == 1;
+// =========================================================================
+// ПУЛЫ ВАРИАЦИЙ И ПЛАНЫ РАУНДОВ (ПО СТРАНИЦАМ УРОВНЕЙ 1-10, docs/levels)
+// Вариация хода — строка из букв направлений: В — вверх, Н — вниз,
+// Л — влево, П — вправо. Каждая буква = 1 шаг (1 клетка); одинаковые буквы
+// подряд — один сегмент («ВВП» = «на две клетки вверх и на одну вправо»);
+// знак «+» разделяет два сегмента одного направления («ЛЛ+ЛЛ» = «на две
+// клетки влево и ещё на две влево»).
+// Ход — 1-2 сегмента, сумма клеток в бюджете уровня [minSteps, maxSteps].
+// Типы: прямые, Г-образные (перпендикулярные), двойные (одно направление
+// дважды) и обратные (противоположные направления). Нулевых обратных
+// (возврат в ту же клетку, например «ВВ+НН») нет; со 2-го уровня нет ходов
+// из двух одиночных сегментов (1+1). Уровень 1 — своё ТЗ: только одиночные,
+// прямые на 2 и перпендикулярные Г-ходы 1+1.
+// Раунд = случайная выборка movesPerRound разных вариаций из пула (малый
+// пул уровней 2-3 проходится 4 раза) с балансом ровно 50/50 ДАЛЬШЕ/СТОП.
+// Проверяется только клетка приземления: край / преграда / объект = СТОП.
+// =========================================================================
 
-  final List<List<int>> splits = [];
-  if (total <= 4) splits.add([total]); // одиночное направление
-  for (int a = 1; a < total; a++) {
-    final int b = total - a;
-    if (a > 4 || b > 4) continue;
-    if (!isL1 && a < 2 && b < 2) continue;
-    splits.add([a, b]);
+const List<String> _dirLetters = ['Л', 'П', 'В', 'Н'];
+
+const Map<String, String> _letterToDir = {
+  'В': 'вверх',
+  'Н': 'вниз',
+  'Л': 'влево',
+  'П': 'вправо',
+};
+
+bool _isHorizontal(String letter) => letter == 'Л' || letter == 'П';
+
+// Пул вариаций хода уровня, выводится из бюджета шагов [minSteps, maxSteps].
+// Размеры пулов по уровням: 16 / 4 / 4 / 40 / 40 / 40 / 88 / 88 / 88 / 88.
+List<String> buildMovePool(DifficultyConfig config) {
+  final bool isL1 = config.level == 1;
+  final List<String> pool = [];
+  for (int total = config.minSteps; total <= config.maxSteps; total++) {
+    if (total == 1) {
+      pool.addAll(_dirLetters); // одиночные шаги (только уровень 1)
+      continue;
+    }
+    if (total <= 4) {
+      for (final d in _dirLetters) {
+        pool.add(d * total); // прямой ход на total клеток
+      }
+    }
+    for (int a = 1; a < total; a++) {
+      final int b = total - a;
+      if (a > 4 || b > 4) continue; // лимит озвучки — 4 клетки на сегмент
+      if (!isL1 && a < 2 && b < 2) continue; // нет ходов 1+1 со 2-го уровня
+      for (final d1 in _dirLetters) {
+        for (final d2 in _dirLetters) {
+          if (isL1) {
+            // Уровень 1 (по его ТЗ): только перпендикулярные Г-ходы.
+            if (_isHorizontal(d1) == _isHorizontal(d2)) continue;
+            pool.add(d1 * a + d2 * b);
+          } else if (d1 == d2) {
+            // Двойной ход: то же направление вторым сегментом («и ещё на»).
+            pool.add('${d1 * a}+${d2 * b}');
+          } else if (_isHorizontal(d1) == _isHorizontal(d2)) {
+            // Обратный ход: противоположные направления. Нулевые (a == b —
+            // возврат в ту же клетку) исключены.
+            if (a == b) continue;
+            pool.add(d1 * a + d2 * b);
+          } else {
+            pool.add(d1 * a + d2 * b); // Г-образный ход
+          }
+        }
+      }
+    }
   }
-  if (splits.isEmpty) splits.add([total.clamp(1, 4)]);
-  return splits[rand.nextInt(splits.length)];
+  return pool;
+}
+
+// Количество ходов в раунде уровня (из конфига).
+int roundLength(DifficultyConfig config) => config.movesPerRound;
+
+// Вариация -> сегменты для движка и озвучки: одинаковые буквы подряд —
+// один сегмент, «+» — граница сегментов одного направления.
+List<MoveSegment> moveSegmentsFor(String move) {
+  final List<MoveSegment> segments = [];
+  for (final part in move.split('+')) {
+    int i = 0;
+    while (i < part.length) {
+      int j = i;
+      while (j < part.length && part[j] == part[i]) {
+        j++;
+      }
+      segments.add(MoveSegment(_letterToDir[part[i]]!, j - i));
+      i = j;
+    }
+  }
+  return segments;
+}
+
+// Суммарное смещение вариации (x растёт вправо, y — вниз).
+Point<int> moveOffset(String move) {
+  int dx = 0, dy = 0;
+  for (final ch in move.split('')) {
+    switch (ch) {
+      case 'Л':
+        dx--;
+      case 'П':
+        dx++;
+      case 'В':
+        dy--;
+      case 'Н':
+        dy++;
+    }
+  }
+  return Point(dx, dy);
+}
+
+// Один запланированный ход раунда: какому объекту адресован и вариация.
+class PlannedMove {
+  final int objectId; // id объекта (1 или 2)
+  final String move;
+  const PlannedMove(this.objectId, this.move);
+}
+
+// Правильные ответы плана при безошибочной игре: объекты стартуют в своих
+// клетках и передвигаются на каждом валидном ходе, преграды статичны.
+// true = ДАЛЬШЕ (клетка приземления в поле, не преграда и не другой объект).
+List<bool> roundPlanAnswers({
+  required List<PlannedMove> plan,
+  required List<Point<int>> objectStarts,
+  required List<Point<int>> obstacles,
+  required int gridSize,
+}) {
+  final pos = [for (final p in objectStarts) Point(p.x, p.y)];
+  final List<bool> answers = [];
+  for (final planned in plan) {
+    final int idx = (planned.objectId - 1).clamp(0, pos.length - 1);
+    final o = moveOffset(planned.move);
+    final target = Point(pos[idx].x + o.x, pos[idx].y + o.y);
+    bool safe = target.x >= 0 &&
+        target.x < gridSize &&
+        target.y >= 0 &&
+        target.y < gridSize &&
+        !obstacles.contains(target);
+    if (safe) {
+      for (int j = 0; j < pos.length; j++) {
+        if (j != idx && pos[j] == target) safe = false;
+      }
+    }
+    answers.add(safe);
+    if (safe) pos[idx] = target;
+  }
+  return answers;
+}
+
+int roundPlanSafeCount({
+  required List<PlannedMove> plan,
+  required List<Point<int>> objectStarts,
+  required List<Point<int>> obstacles,
+  required int gridSize,
+}) => roundPlanAnswers(
+      plan: plan,
+      objectStarts: objectStarts,
+      obstacles: obstacles,
+      gridSize: gridSize,
+    ).where((a) => a).length;
+
+// План раунда: случайная выборка movesPerRound разных вариаций из пула
+// (малый пул уровней 2-3 тиражируется до 16 ходов); на двухобъектных
+// уровнях ходы поделены между объектами поровну. Перемешиваем, пока баланс
+// не станет ровно 50/50 (обычно хватает единиц попыток); страховочный
+// лимит возвращает лучший найденный вариант.
+List<PlannedMove> generateRoundPlan({
+  required DifficultyConfig config,
+  required List<Point<int>> objectStarts,
+  required List<Point<int>> obstacles,
+  required Random rand,
+}) {
+  final pool = buildMovePool(config);
+  final int target = config.movesPerRound;
+  final bool sampled = pool.length >= target;
+  final int reps = sampled ? 1 : target ~/ pool.length;
+  final int half = target ~/ 2;
+
+  // Адресаты ходов: ровно половина каждому объекту (одному — все).
+  final List<int> ids = [
+    for (int i = 0; i < target; i++)
+      objectStarts.length == 2 && i >= half ? 2 : 1,
+  ];
+
+  List<PlannedMove> build() {
+    pool.shuffle(rand);
+    final List<String> moves = sampled
+        ? pool.sublist(0, target)
+        : ([for (int r = 0; r < reps; r++) ...pool]..shuffle(rand));
+    ids.shuffle(rand);
+    return [
+      for (int i = 0; i < target; i++) PlannedMove(ids[i], moves[i]),
+    ];
+  }
+
+  int diffOf(List<PlannedMove> plan) => (roundPlanSafeCount(
+        plan: plan,
+        objectStarts: objectStarts,
+        obstacles: obstacles,
+        gridSize: config.gridSize,
+      ) - half).abs();
+
+  List<PlannedMove> best = build();
+  int bestDiff = diffOf(best);
+  for (int attempt = 0; attempt < 2000 && bestDiff != 0; attempt++) {
+    final plan = build();
+    final int diff = diffOf(plan);
+    if (diff < bestDiff) {
+      best = plan;
+      bestDiff = diff;
+    }
+  }
+  return best;
 }
 
 // =========================================================================
@@ -826,22 +1034,28 @@ class VoiceService {
   static set volume(double v) => TTSEngine.volume = v;
 
   // Тексты статичных фраз — совпадают с tool/generate_voice_lines.dart.
+  // Для фраз без записанного клипа (found_single, game_over_safe,
+  // miss_wrong_order) целая фраза озвучивается системным TTS, пока диктор
+  // не запишет клипы (перегенерация через tool/generate_voice_lines.dart).
   static const Map<String, String> _staticTexts = {
     "memorize": "Запомни расположение объектов на поле.",
     "game_over": "Ой! Вы ошиблись и объект попал в тупик.",
+    "game_over_safe": "Ой! Вы ошиблись. Путь был чист — объект мог пройти.",
     "perfect_finish": "Отличная работа! Идеальная сессия. Запуск супер-игры.",
     "supergame_trap":
         "Ловушка! Вы наступили на препятствие. Супер-игра окончена.",
     "found_first": "Правильно! Нашли первый объект.",
     "found_second": "Отлично! Нашли второй объект. Монеты удвоены!",
+    "found_single": "Правильно! Объект найден. Монеты удвоены!",
     "miss_empty": "Промах! Это была пустая ячейка.",
+    "miss_wrong_order": "Промах! Это второй объект — сначала найдите первый.",
     "xray_on": "Рентген активирован на три секунды.",
   };
 
-  // Подстановка для клипов, которые ещё могут быть не записаны диктором.
-  // Пока нет «и ещё на» — используем записанный «и на», чтобы фраза целиком
-  // звучала голосом диктора. Как только настоящий клип появится в assets —
-  // он подхватится автоматически.
+  // Подстановка для клипов, которых может не оказаться в assets: вместо
+  // отсутствующего играем ближайший по смыслу, чтобы фраза целиком звучала
+  // голосом диктора. Клип «и ещё на» уже записан — подмена осталась как
+  // страховка на случай его пропажи из пакета.
   static const Map<String, String> _clipFallback = {
     "connector_i_eshe_na": "connector_i_na",
   };
@@ -1091,7 +1305,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                 ),
                 const SizedBox(height: 4),
                 const Text(
-                  'Диктор произносит один ход случайного объекта, например: «Кошка пойдёт на две клетки вверх и на одну клетку вправо». Сразу принимайте решение:',
+                  'Диктор произносит очередной ход, например: «Кошка хочет пойти на две клетки вверх и на одну клетку вправо» или «...на две клетки влево и ещё на две влево». Сразу принимайте решение:',
                 ),
                 const SizedBox(height: 8),
                 Row(
@@ -1748,7 +1962,7 @@ class _UpgradesScreenState extends State<UpgradesScreen> {
                       ),
                     ),
                     subtitle: Text(
-                      'Во время раундов поле скрыто — только кнопки (награда ×2 $coin)',
+                      'Во время раунда поле скрыто — только кнопки (награда ×2 $coin)',
                       style: const TextStyle(fontSize: 11, color: Colors.grey),
                     ),
                     activeThumbColor: activeTheme.primaryColor,
@@ -1968,7 +2182,7 @@ class _UpgradesScreenState extends State<UpgradesScreen> {
                               const SizedBox(width: 8),
                               Flexible(
                                 child: Text(
-                                  'Требуется побед на Ур. ${config.level - 1}: $prevWins / ${config.winsRequiredFromPrevious}',
+                                  'Требуется побед на\nуровне ${config.level - 1}: $prevWins / ${config.winsRequiredFromPrevious}',
                                   textAlign: TextAlign.end,
                                   style: TextStyle(
                                     color:
@@ -2373,7 +2587,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const Divider(height: 1),
                 SwitchListenable(
                   title: 'Слепой режим',
-                  subtitle: 'Во время раундов поле скрыто — только кнопки (награда ×2 $coin)',
+                  subtitle: 'Во время раунда поле скрыто — только кнопки (награда ×2 $coin)',
                   value: StorageService.isBlindModeGlobal,
                   onChanged: (val) {
                     setState(() {
@@ -2571,6 +2785,10 @@ class _GameScreenState extends State<GameScreen> {
   bool isGameOver = false;
   bool isPerfect = false;
 
+  // План раунда: все вариации пула уровня (баланс 50/50), генерируется при
+  // спавне расстановки; ходы идут строго по плану.
+  List<PlannedMove> _roundPlan = [];
+
   List<String> devLogs = [];
 
   bool superGameMode = false;
@@ -2582,7 +2800,9 @@ class _GameScreenState extends State<GameScreen> {
   @override
   void initState() {
     super.initState();
-    maxRounds = widget.config.gridSize * 2;
+    // Раунд = все вариации пула уровня (по страницам уровней):
+    // 16 / 16 / 16 / 24 / 20 / 20 / 48 / 28 / 28 / 28 ходов.
+    maxRounds = roundLength(widget.config);
     _setupInitialGrid();
     _startMemorizationCountdown();
   }
@@ -2637,6 +2857,15 @@ class _GameScreenState extends State<GameScreen> {
       );
     }
 
+    // Сразу строим план раунда от стартовой расстановки: все вариации пула
+    // уровня в случайном порядке с балансом ровно 50/50 ДАЛЬШЕ/СТОП.
+    _roundPlan = generateRoundPlan(
+      config: widget.config,
+      objectStarts: [for (final o in objects) Point(o.x, o.y)],
+      obstacles: obstacleCoordinates,
+      rand: _random,
+    );
+
     _logDev("--- СПАВН ОБЪЕКТОВ И ПРЕПЯТСТВИЙ ---");
     _logDev(
       "Размер сетки: ${widget.config.gridSize}x${widget.config.gridSize}",
@@ -2645,6 +2874,10 @@ class _GameScreenState extends State<GameScreen> {
     for (var obj in objects) {
       _logDev("Объект ${obj.id} [${obj.emoji}] спавн на: (${obj.x}, ${obj.y})");
     }
+    _logDev(
+      "План раунда (${maxRounds ~/ 2}/${maxRounds ~/ 2}): "
+      "${_roundPlan.map((p) => '${p.objectId}:${p.move}').join(' · ')}",
+    );
   }
 
   void _logDev(String message) {
@@ -2679,21 +2912,18 @@ class _GameScreenState extends State<GameScreen> {
       return;
     }
 
-    final activeObj = objects[_random.nextInt(objects.length)];
+    // Очередной ход из плана раунда: адресат и вариация зафиксированы планом.
+    final PlannedMove planned = _roundPlan[currentRound - 1];
+    final activeObj = objects.firstWhere(
+      (o) => o.id == planned.objectId,
+      orElse: () => objects.first,
+    );
     final theme = getActiveTheme();
     String fullObjName = activeObj.id == 1 ? theme.obj1 : theme.obj2;
 
     final config = widget.config;
 
-    // Длины сегментов хода (в клетках): сумма = бюджет шагов уровня.
-    final List<int> chosen = generateMoveSegments(config, _random);
-
-    // Каждому сегменту — случайное направление из четырёх (может совпадать —
-    // «и ещё на», быть противоположным или перпендикулярным — «и на»).
-    const List<String> dirs = ["влево", "вправо", "вверх", "вниз"];
-    final List<MoveSegment> segments = [
-      for (final cells in chosen) MoveSegment(dirs[_random.nextInt(4)], cells),
-    ];
+    final List<MoveSegment> segments = moveSegmentsFor(planned.move);
 
     // Суммарный сдвиг по сегментам — проверяем только финальную клетку.
     int nextX = activeObj.x;
@@ -2751,7 +2981,7 @@ class _GameScreenState extends State<GameScreen> {
     });
 
     _logDev(
-      "РАУНД $currentRound. Ход для ${activeObj.emoji} из (${activeObj.x}, ${activeObj.y}) -> Цель: ($nextX, $nextY). Безопасен: $isSafe.",
+      "ХОД $currentRound. ${activeObj.emoji} из (${activeObj.x}, ${activeObj.y}) -> Цель: ($nextX, $nextY). Безопасен: $isSafe.",
     );
     VoiceService.speakMove(speech);
   }
@@ -2779,12 +3009,15 @@ class _GameScreenState extends State<GameScreen> {
           coinsEarned += reward;
           currentRound++;
           _logDev(
-            "УСПЕХ: Объект ${activeObj.emoji} перемещен на (${activeObj.x}, ${activeObj.y}). Раунд пройден.",
+            "УСПЕХ: Объект ${activeObj.emoji} перемещен на (${activeObj.x}, ${activeObj.y}). Ход пройден.",
           );
         } else {
           coinsEarned += (reward ~/ 2);
+          // Раунд — фиксированный план ходов: предотвращённый тупик тоже
+          // расходует ход, счётчик идёт дальше по плану.
+          currentRound++;
           _logDev(
-            "УСПЕХ: Предотвращен тупик! Объект остался на месте. Генерируем новую команду для раунда $currentRound.",
+            "УСПЕХ: Предотвращен тупик! Объект остался на месте. Следующий ход плана.",
           );
         }
       });
@@ -2815,7 +3048,11 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   void _triggerGameOver() {
-    VoiceService.speakStatic("game_over");
+    // Две разные ошибки — две разные фразы: нажал «Дальше» на тупике
+    // (объект «попал в тупик») или нажал «Стоп» на чистом пути.
+    VoiceService.speakStatic(
+      currentMove?.isSafe == true ? "game_over_safe" : "game_over",
+    );
     setState(() {
       isGameOver = true;
     });
@@ -2832,6 +3069,9 @@ class _GameScreenState extends State<GameScreen> {
 
   void _onSuperGameCellTap(int index) {
     if (superGameFailed || superGameSuccess) return;
+    // Повторный тап по уже открытой ячейке (найденному объекту) — не промах,
+    // просто игнорируем, чтобы случайный двойной тап не завершал супер-игру.
+    if (tappedIndices.contains(index)) return;
 
     int col = index % widget.config.gridSize;
     int row = index ~/ widget.config.gridSize;
@@ -2850,7 +3090,10 @@ class _GameScreenState extends State<GameScreen> {
     if (superGameStep == 1) {
       final obj1 = objects[0];
       if (obj1.x == col && obj1.y == row) {
-        VoiceService.speakStatic("found_first");
+        // Один объект в матче — «первого/второго» нет, сразу удвоение.
+        VoiceService.speakStatic(
+          objects.length == 1 ? "found_single" : "found_first",
+        );
         setState(() {
           tappedIndices.add(index);
           if (objects.length == 1) {
@@ -2879,11 +3122,16 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   void _handleSuperGameMiss(int index) {
+    int col = index % widget.config.gridSize;
+    int row = index ~/ widget.config.gridSize;
+    // Тап по клетке второго объекта раньше первого — это ошибка порядка,
+    // а не «пустая ячейка»: фраза диктора должна соответствовать.
+    final bool hitOtherObject = objects.any((o) => o.x == col && o.y == row);
     setState(() {
       superGameFailed = true;
       tappedIndices.add(index);
     });
-    VoiceService.speakStatic("miss_empty");
+    VoiceService.speakStatic(hitOtherObject ? "miss_wrong_order" : "miss_empty");
     StorageService.addSessionToHistory(coinsEarned, true);
   }
 
@@ -2957,7 +3205,7 @@ class _GameScreenState extends State<GameScreen> {
         ? Scaffold(body: _buildEmptyRoundsBody())
         : Scaffold(
             appBar: AppBar(
-              title: Text('Раунд $currentRound / $maxRounds'),
+              title: Text('Ход $currentRound / $maxRounds'),
               leading: IconButton(
                 icon: const Icon(Icons.arrow_back),
                 onPressed: () {
@@ -3020,7 +3268,14 @@ class _GameScreenState extends State<GameScreen> {
     return PopScope(
       canPop: true,
       onPopInvokedWithResult: (didPop, _) {
-        if (didPop) VoiceService.stop();
+        if (!didPop) return;
+        VoiceService.stop();
+        // Выход из незавершённой супер-игры: основная фаза пройдена без
+        // ошибок, поэтому базовая награда сохраняется (сгорает только
+        // удвоение) — как при промахе в супер-игре.
+        if (superGameMode && !superGameFailed && !superGameSuccess) {
+          StorageService.addSessionToHistory(coinsEarned, true);
+        }
       },
       child: scaffold,
     );
@@ -3479,9 +3734,12 @@ class _GameScreenState extends State<GameScreen> {
                 child: const Text('Забрать монеты и выйти'),
               ),
             ] else ...[
-              const Text(
-                'Тапните по ячейке поля на память.\nОпасайтесь скрытых ловушек на месте камней!',
-                style: TextStyle(color: Colors.grey, fontSize: 12),
+              // Про ловушки предупреждаем только если на уровне были камни.
+              Text(
+                obstacleCoordinates.isEmpty
+                    ? 'Тапните по ячейке поля на память.'
+                    : 'Тапните по ячейке поля на память.\nОпасайтесь скрытых ловушек на месте камней!',
+                style: const TextStyle(color: Colors.grey, fontSize: 12),
                 textAlign: TextAlign.center,
               ),
             ],

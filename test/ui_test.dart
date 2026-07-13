@@ -173,7 +173,7 @@ void main() {
   testWidgets('Игра: старт, запоминание, кнопки Дальше/Стоп работают', (tester) async {
     await pumpApp(tester);
     await openFromMenu(tester, 'Старт сессии');
-    expect(find.textContaining('Раунд'), findsWidgets);
+    expect(find.textContaining('Ход'), findsWidgets);
 
     // Проходим фазу запоминания (4 секунды countdown).
     for (int i = 0; i < 6; i++) {
@@ -196,8 +196,8 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Сессия завершается, «Повторить» сбрасывает раунд', (tester) async {
-    StorageService.isBlindModeGlobal = false; // нужен AppBar «Раунд X» и кнопки снизу
+  testWidgets('Сессия завершается, «Повторить» сбрасывает ход', (tester) async {
+    StorageService.isBlindModeGlobal = false; // нужен AppBar «Ход X» и кнопки снизу
     await pumpApp(tester);
     await openFromMenu(tester, 'Старт сессии');
     for (int i = 0; i < 6; i++) {
@@ -226,7 +226,7 @@ void main() {
     if (find.text('Повторить попытку').evaluate().isNotEmpty) {
       await tester.tap(find.text('Повторить попытку'));
       await tester.pump(const Duration(milliseconds: 100));
-      expect(find.textContaining('Раунд 1'), findsWidgets);
+      expect(find.textContaining('Ход 1'), findsWidgets);
       // Продреним таймеры нового обратного отсчёта запоминания,
       // чтобы не осталось «pending timer» на момент завершения теста.
       for (int i = 0; i < 6; i++) {
@@ -284,8 +284,8 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
     }
     await tester.pump(const Duration(milliseconds: 300));
-    // Обычный вид с AppBar «Раунд X» (а не пустой экран) и кнопки решения на месте.
-    expect(find.textContaining('Раунд'), findsWidgets);
+    // Обычный вид с AppBar «Ход X» (а не пустой экран) и кнопки решения на месте.
+    expect(find.textContaining('Ход'), findsWidgets);
     expect(find.text('Дальше'), findsWidgets);
   });
 }
