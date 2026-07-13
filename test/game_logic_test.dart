@@ -453,6 +453,24 @@ void main() {
       }
     });
 
+    test('activeDifficulty: закрытый уровень не запускается без дев-режима', () {
+      StorageService.unlockedDifficulties = [1, 2, 3];
+      StorageService.activeDifficulty = 10; // выбран в режиме тестировщика
+
+      StorageService.devModeActive = true;
+      expect(StorageService.effectiveDifficulty(), 10,
+          reason: 'в режиме тестировщика доступен любой уровень');
+
+      StorageService.devModeActive = false;
+      expect(StorageService.effectiveDifficulty(), 3,
+          reason: 'без дев-режима — максимальный купленный уровень');
+      expect(StorageService.activeConfig().level, 3);
+
+      // Разблокированный активный уровень не трогаем.
+      StorageService.activeDifficulty = 2;
+      expect(StorageService.effectiveDifficulty(), 2);
+    });
+
     test('Экономика уровня 1: 10 монет за ход, 5 за предотвращённый тупик', () {
       final level1 = difficulties.firstWhere((d) => d.level == 1);
       expect(level1.pointsFor(1, 0), 10, reason: 'награда за ход из ТЗ');

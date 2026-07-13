@@ -276,6 +276,61 @@ void main() {
     expect(find.text('Недостаточно монет!'), findsOneWidget);
   });
 
+  testWidgets('Случайный двойной тап не отвечает за следующий ход', (tester) async {
+    StorageService.isBlindModeGlobal = false; // нужен AppBar со счётчиком хода
+    await pumpApp(tester);
+    await openFromMenu(tester, 'Старт сессии');
+    for (int i = 0; i < 6; i++) {
+      await tester.pump(const Duration(seconds: 1));
+    }
+    await tester.pump(const Duration(milliseconds: 300));
+
+    // Два тапа подряд без паузы. Второй обязан быть проглочен блокировкой:
+    // иначе он ответил бы за следующий, ещё не прозвучавший ход.
+    await tester.tap(find.text('Дальше').first);
+    await tester.pump();
+    if (find.text('Дальше').evaluate().isNotEmpty) {
+      await tester.tap(find.text('Дальше').first);
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+
+    // Возможных исходов два: ошибка на первом же ходе («ИГРА ОКОНЧЕНА») или
+    // ровно один засчитанный ход («Ход 2 / N»). «Ход 3» означал бы, что
+    // второй тап проскочил.
+    expect(find.textContaining('Ход 3'), findsNothing,
+        reason: 'второй тап не должен засчитываться как ответ');
+    expect(tester.takeException(), isNull);
+
+    // Дренаж таймера блокировки, чтобы не осталось pending timer.
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('Сброс прогресса обнуляет победы и настройки матча', (tester) async {
+    // Имитируем накопленный прогресс и сохраняем его на диск.
+    StorageService.difficultyWins[1] = 7;
+    StorageService.customObjects[4] = 1;
+    StorageService.customObstacles[5] = 1;
+    StorageService.userTotalBank = 5000;
+    await StorageService.syncWithDisk();
+
+    await pumpApp(tester);
+    await openFromMenu(tester, 'Настройки');
+    final reset = find.text('Сбросить весь прогресс');
+    await tester.ensureVisible(reset);
+    await tester.tap(reset);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Сбросить'));
+    await tester.pumpAndSettle();
+
+    // Победы и пользовательские настройки матча не должны «пережить» сброс:
+    // после prefs.clear() ключей нет, и старые значения не могут остаться
+    // в памяти (иначе они снова уедут на диск при следующем сохранении).
+    expect(StorageService.userTotalBank, 0);
+    expect(StorageService.difficultyWins[1], 0, reason: 'победы не сброшены');
+    expect(StorageService.customObjects, isEmpty);
+    expect(StorageService.customObstacles, isEmpty);
+  });
+
   testWidgets('Слепая сетка ВЫКЛ — во время раундов видно поле', (tester) async {
     StorageService.isBlindModeGlobal = false;
     await pumpApp(tester);

@@ -280,6 +280,27 @@ class StorageService {
     return v.clamp(1, c.obstaclesCount);
   }
 
+  // Уровень, с которым реально стартует сессия. Активный уровень может
+  // оказаться закрытым: его выбрали в режиме тестировщика (там открыто всё),
+  // а потом режим выключили — играть за него нельзя, откатываемся на
+  // максимальный разблокированный.
+  static int effectiveDifficulty() {
+    if (devModeActive || unlockedDifficulties.contains(activeDifficulty)) {
+      return activeDifficulty;
+    }
+    return unlockedDifficulties.isEmpty
+        ? 1
+        : unlockedDifficulties.reduce((a, b) => a > b ? a : b);
+  }
+
+  static DifficultyConfig activeConfig() {
+    final int level = effectiveDifficulty();
+    return difficulties.firstWhere(
+      (d) => d.level == level,
+      orElse: () => difficulties.first,
+    );
+  }
+
   static Future<void> loadData() async {
     final prefs = await SharedPreferences.getInstance();
     userTotalBank = prefs.getInt('userTotalBank') ?? 0;
@@ -297,6 +318,16 @@ class StorageService {
             .map((e) => int.parse(e))
             .toList();
     activeDifficulty = prefs.getInt('activeDifficulty') ?? 1;
+    // Сохранённый активный уровень может оказаться закрытым (его выбрали в
+    // режиме тестировщика или сбросили прогресс) — приводим к доступному.
+    activeDifficulty = effectiveDifficulty();
+
+    // Сначала сбрасываем к значениям по умолчанию. Ключа в хранилище может не
+    // быть (первый запуск или «Сбросить весь прогресс») — тогда в памяти не
+    // должны оставаться прежние значения, иначе они снова уедут на диск.
+    difficultyWins = {for (final d in difficulties) d.level: 0};
+    customObjects = {};
+    customObstacles = {};
 
     String? winsJson = prefs.getString('difficultyWins');
     if (winsJson != null) {
@@ -494,8 +525,6 @@ class DifficultyConfig {
     if (maxSteps > 1) points += 5 * (maxSteps - 1);
     return points;
   }
-
-  int get basePoints => pointsFor(objectsCount, obstaclesCount);
 }
 
 final List<DifficultyConfig> difficulties = [
@@ -1518,11 +1547,9 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                     label: 'Старт сессии',
                     color: const Color(0xFF14B8A6),
                     onTap: () {
-                      final config = difficulties.firstWhere(
-                        (element) =>
-                            element.level == StorageService.activeDifficulty,
-                        orElse: () => difficulties[0],
-                      );
+                      // Только разблокированный уровень (в режиме
+                      // тестировщика — любой): см. activeConfig().
+                      final config = StorageService.activeConfig();
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -1994,6 +2021,7 @@ class _UpgradesScreenState extends State<UpgradesScreen> {
 
                 final effObjects = StorageService.effectiveObjects(config);
                 final effObstacles = StorageService.effectiveObstacles(config);
+                final reward = config.pointsFor(effObjects, effObstacles);
                 // Есть ли что настраивать на этом уровне.
                 final bool canCustomize =
                     config.objectsCount > 1 || config.obstaclesCount > 1;
@@ -2100,8 +2128,13 @@ class _UpgradesScreenState extends State<UpgradesScreen> {
                                   ? 'шагов ${config.maxSteps}'
                                   : 'шагов ${config.minSteps}–${config.maxSteps}',
                             ),
+                            _statChip('ходов ${config.movesPerRound}'),
+                            // Награда за ход — сразу с бонусом слепого режима,
+                            // иначе чип врёт (режим включён по умолчанию).
                             _statChip(
-                              '+${config.pointsFor(effObjects, effObstacles)} $coin',
+                              StorageService.isBlindModeGlobal
+                                  ? '+${reward * 2} $coin (×2)'
+                                  : '+$reward $coin',
                             ),
                           ],
                         ),
@@ -2645,6 +2678,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onChanged: (val) {
                     setState(() {
                       StorageService.devModeActive = val;
+                      // В режиме тестировщика открыты все уровни. При его
+                      // выключении активный уровень может оказаться закрытым —
+                      // откатываем на максимальный купленный.
+                      StorageService.activeDifficulty =
+                          StorageService.effectiveDifficulty();
                       StorageService.syncWithDisk();
                     });
                   },
@@ -2783,7 +2821,16 @@ class _GameScreenState extends State<GameScreen> {
 
   final Random _random = Random();
   bool isGameOver = false;
-  bool isPerfect = false;
+
+  // Сессия записывается в журнал ровно один раз — из какой бы точки она ни
+  // завершилась (поражение, промах в супер-игре, «Забрать монеты», выход
+  // кнопкой «назад»).
+  bool _sessionRecorded = false;
+
+  // Короткая блокировка кнопок сразу после появления нового хода. В ландшафте
+  // зоны нажатия занимают половину экрана, и случайный второй тап иначе
+  // отвечал бы на ещё не прозвучавший ход — почти гарантированный проигрыш.
+  bool _inputLocked = false;
 
   // План раунда: все вариации пула уровня (баланс 50/50), генерируется при
   // спавне расстановки; ходы идут строго по плану.
@@ -2983,11 +3030,22 @@ class _GameScreenState extends State<GameScreen> {
     _logDev(
       "ХОД $currentRound. ${activeObj.emoji} из (${activeObj.x}, ${activeObj.y}) -> Цель: ($nextX, $nextY). Безопасен: $isSafe.",
     );
+    _lockInput();
     VoiceService.speakMove(speech);
   }
 
+  // Ход только что объявлен — на пол-секунды глушим кнопки. Осмысленный ответ
+  // всё равно приходит позже (фраза диктора длится секунды), а «залипший»
+  // второй тап по предыдущему ходу теперь ничего не ломает.
+  void _lockInput() {
+    _inputLocked = true;
+    Future.delayed(const Duration(milliseconds: 450), () {
+      if (mounted) setState(() => _inputLocked = false);
+    });
+  }
+
   void _onPlayerDecision(bool playerSaysSafe) {
-    if (currentMove == null) return;
+    if (currentMove == null || _inputLocked) return;
 
     setState(() {
       xrayActive = false;
@@ -3036,15 +3094,32 @@ class _GameScreenState extends State<GameScreen> {
         _showCustomDialog(
           title: '🛡️ Щит Спас Вас!',
           content:
-              'Был израсходован Щит Спасения. Вы застрахованы от этой ошибки, продолжаем сессию!',
+              'Был израсходован Щит Спасения. Ход прозвучит ещё раз — ответьте заново.',
           buttonText: 'Уф, спасибо!',
-        );
+        ).then((_) {
+          // Повторяем ход голосом: после диалога игрок мог его забыть.
+          final move = currentMove;
+          if (!mounted || move == null) return;
+          _lockInput();
+          VoiceService.speakMove(
+            MoveSpeech(move.speechText, move.speechClips),
+          );
+        });
         _logDev("ОШИБКА: Использован автоматический Щит. Сессия спасена.");
         return;
       }
 
       _triggerGameOver();
     }
+  }
+
+  // Единственная точка записи сессии в журнал: повторные вызовы игнорируются,
+  // поэтому монеты не пропадут и не начислятся дважды, каким бы путём игрок ни
+  // вышел из матча.
+  void _recordSession(bool perfect) {
+    if (_sessionRecorded) return;
+    _sessionRecorded = true;
+    StorageService.addSessionToHistory(coinsEarned, perfect);
   }
 
   void _triggerGameOver() {
@@ -3056,7 +3131,7 @@ class _GameScreenState extends State<GameScreen> {
     setState(() {
       isGameOver = true;
     });
-    StorageService.addSessionToHistory(coinsEarned, false);
+    _recordSession(false);
   }
 
   void _triggerPerfectFinish() {
@@ -3083,7 +3158,7 @@ class _GameScreenState extends State<GameScreen> {
         tappedIndices.add(index);
       });
       VoiceService.speakStatic("supergame_trap");
-      StorageService.addSessionToHistory(coinsEarned, true);
+      _recordSession(true);
       return;
     }
 
@@ -3132,11 +3207,11 @@ class _GameScreenState extends State<GameScreen> {
       tappedIndices.add(index);
     });
     VoiceService.speakStatic(hitOtherObject ? "miss_wrong_order" : "miss_empty");
-    StorageService.addSessionToHistory(coinsEarned, true);
+    _recordSession(true);
   }
 
   void _completePerfectWithBonus() {
-    StorageService.addSessionToHistory(coinsEarned, true);
+    _recordSession(true);
     Navigator.pop(context);
   }
 
@@ -3169,12 +3244,12 @@ class _GameScreenState extends State<GameScreen> {
     });
   }
 
-  void _showCustomDialog({
+  Future<void> _showCustomDialog({
     required String title,
     required String content,
     required String buttonText,
   }) {
-    showDialog(
+    return showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -3205,7 +3280,13 @@ class _GameScreenState extends State<GameScreen> {
         ? Scaffold(body: _buildEmptyRoundsBody())
         : Scaffold(
             appBar: AppBar(
-              title: Text('Ход $currentRound / $maxRounds'),
+              // В супер-игре ходов уже нет, а счётчик стоит на maxRounds + 1 —
+              // показывать «Ход 17 / 16» нельзя.
+              title: Text(
+                superGameMode
+                    ? 'Супер-игра'
+                    : 'Ход ${min(currentRound, maxRounds)} / $maxRounds',
+              ),
               leading: IconButton(
                 icon: const Icon(Icons.arrow_back),
                 onPressed: () {
@@ -3270,12 +3351,10 @@ class _GameScreenState extends State<GameScreen> {
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) return;
         VoiceService.stop();
-        // Выход из незавершённой супер-игры: основная фаза пройдена без
-        // ошибок, поэтому базовая награда сохраняется (сгорает только
-        // удвоение) — как при промахе в супер-игре.
-        if (superGameMode && !superGameFailed && !superGameSuccess) {
-          StorageService.addSessionToHistory(coinsEarned, true);
-        }
+        // Выход из супер-игры любым способом (в т.ч. системной кнопкой
+        // «назад» после победы): основная фаза пройдена без ошибок, поэтому
+        // заработанное сохраняется. Повторную запись гасит _recordSession.
+        if (superGameMode) _recordSession(true);
       },
       child: scaffold,
     );
@@ -3672,6 +3751,11 @@ class _GameScreenState extends State<GameScreen> {
                   superGameSuccess = false;
                   tappedIndices.clear();
                   xrayActive = false;
+                  // Новая попытка — новая сессия в журнале, свой лог и
+                  // разблокированные кнопки.
+                  _sessionRecorded = false;
+                  _inputLocked = false;
+                  devLogs.clear();
                   _setupInitialGrid();
                   _startMemorizationCountdown();
                 });
