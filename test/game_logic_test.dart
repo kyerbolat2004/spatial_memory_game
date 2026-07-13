@@ -137,13 +137,21 @@ void main() {
     });
 
     test('roundLength: число ходов раунда по уровням', () {
+      // Лестница монотонная: сессия удлиняется вместе со сложностью и нигде
+      // не «проваливается» (раньше L7 был 48 — длиннее, чем L8-L10).
       const expected = {
-        1: 16, 2: 16, 3: 16, 4: 24, 5: 20,
-        6: 20, 7: 48, 8: 28, 9: 28, 10: 28,
+        1: 16, 2: 16, 3: 16, 4: 20, 5: 20,
+        6: 24, 7: 24, 8: 28, 9: 28, 10: 28,
       };
+      int previous = 0;
       for (final d in difficulties) {
         expect(roundLength(d), expected[d.level],
             reason: 'L${d.level}: неверная длина раунда');
+        expect(roundLength(d), greaterThanOrEqualTo(previous),
+            reason: 'L${d.level}: раунд короче, чем на предыдущем уровне');
+        expect(roundLength(d).isEven, isTrue,
+            reason: 'L${d.level}: длина раунда должна быть чётной (баланс 50/50)');
+        previous = roundLength(d);
       }
     });
 

@@ -190,6 +190,22 @@ Color readableAccent(Color accent, Brightness brightness) {
   return hsl.withLightness((hsl.lightness * 0.55).clamp(0.0, 1.0)).toColor();
 }
 
+// На экране живёт только одно уведомление. Стандартный showSnackBar ставит их
+// в очередь по 4 секунды каждое: пять покупок подряд или пара тапов по
+// «Рентгену» без визоров — и игрок двадцать секунд разгребает всплывашки.
+// Новое уведомление всегда вытесняет предыдущее.
+void showAppSnack(BuildContext context, String text, {Color? background}) {
+  ScaffoldMessenger.of(context)
+    ..clearSnackBars()
+    ..showSnackBar(
+      SnackBar(
+        content: Text(text),
+        backgroundColor: background,
+        duration: const Duration(milliseconds: 1600),
+      ),
+    );
+}
+
 // Базовые Colors.orange / Colors.green на белом дают контраст около 2:1 —
 // текст читается тускло. Берём тёмные оттенки в светлой теме и светлые
 // в тёмной.
@@ -514,8 +530,10 @@ class DifficultyConfig {
   // двойные «и ещё на», обратные), сложность = сумма пройденных клеток.
   final int minSteps;
   final int maxSteps;
-  // Число ходов в раунде: выборка из пула вариаций без повторов
-  // (маленький пул уровней 2-3 проходится несколько раз).
+  // Число ходов в раунде: выборка из пула вариаций без повторов (маленький пул
+  // уровней 2-3 проходится несколько раз — тогда значение должно делиться на
+  // размер пула). Лестница по уровням: 16/16/16/20/20/24/24/28/28/28 — сессия
+  // плавно удлиняется вместе со сложностью.
   final int movesPerRound;
   final int unlockCost;
   final int winsRequiredFromPrevious;
@@ -590,7 +608,7 @@ final List<DifficultyConfig> difficulties = [
     obstaclesCount: 1,
     minSteps: 2,
     maxSteps: 3,
-    movesPerRound: 24,
+    movesPerRound: 20,
     unlockCost: 5000,
     winsRequiredFromPrevious: 5,
   ),
@@ -612,7 +630,7 @@ final List<DifficultyConfig> difficulties = [
     obstaclesCount: 3,
     minSteps: 2,
     maxSteps: 3,
-    movesPerRound: 20,
+    movesPerRound: 24,
     unlockCost: 14000,
     winsRequiredFromPrevious: 6,
   ),
@@ -623,7 +641,7 @@ final List<DifficultyConfig> difficulties = [
     obstaclesCount: 3,
     minSteps: 2,
     maxSteps: 4,
-    movesPerRound: 48,
+    movesPerRound: 24,
     unlockCost: 20000,
     winsRequiredFromPrevious: 6,
   ),
@@ -837,7 +855,7 @@ List<PlannedMove> generateRoundPlan({
   final pool = buildMovePool(config);
   final int target = config.movesPerRound;
   final bool sampled = pool.length >= target;
-  final int reps = sampled ? 1 : target ~/ pool.length;
+  final int reps = sampled ? 1 : (target / pool.length).ceil();
   final int half = target ~/ 2;
 
   // Адресаты ходов: ровно половина каждому объекту (одному — все).
@@ -848,9 +866,13 @@ List<PlannedMove> generateRoundPlan({
 
   List<PlannedMove> build() {
     pool.shuffle(rand);
+    // Тиражируем пул с запасом и режем ровно под длину раунда: если бы
+    // movesPerRound не делилось на размер пула, ходов оказалось бы меньше,
+    // чем нужно, и план обрывался бы на середине раунда.
     final List<String> moves = sampled
         ? pool.sublist(0, target)
-        : ([for (int r = 0; r < reps; r++) ...pool]..shuffle(rand));
+        : ([for (int r = 0; r < reps; r++) ...pool]..shuffle(rand))
+            .sublist(0, target);
     ids.shuffle(rand);
     return [
       for (int i = 0; i < target; i++) PlannedMove(ids[i], moves[i]),
@@ -1328,10 +1350,26 @@ class MainMenuScreen extends StatefulWidget {
 }
 
 class _MainMenuScreenState extends State<MainMenuScreen> {
+  // Переход уже идёт: без этого второй тап по кнопке меню открывал второй
+  // экран поверх первого (две живые сессии игры разом).
+  bool _navigating = false;
+
   @override
   void initState() {
     super.initState();
     VoiceService.init();
+  }
+
+  Future<void> _open(Widget screen) async {
+    if (_navigating) return;
+    _navigating = true;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => screen),
+    );
+    if (!mounted) return;
+    // Экран мог изменить баланс, страйк или уровень — перерисовываем меню.
+    setState(() => _navigating = false);
   }
 
   void _showHowToPlay() {
@@ -1507,13 +1545,17 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                                 fontSize: landscape ? 32 : 44,
                                 fontWeight: FontWeight.w900,
                                 letterSpacing: 0.5,
-                                height: 1.0,
+                                // При height: 1.0 строка ровно в размер шрифта,
+                                // и хвост «y» не влезает в бокс — ShaderMask
+                                // обрезает его по своей маске. Даём строке
+                                // полную высоту с запасом.
+                                height: 1.25,
                                 color: Colors
                                     .white, // перекрывается градиентом ShaderMask
                               ),
                             ),
                           ),
-                          const SizedBox(height: 6),
+                          const SizedBox(height: 2),
                           Text(
                             'ТРЕНАЖЁР ПРОСТРАНСТВЕННОЙ ПАМЯТИ',
                             textAlign: TextAlign.center,
@@ -1594,45 +1636,25 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                     icon: Icons.play_arrow_rounded,
                     label: 'Старт сессии',
                     color: const Color(0xFF14B8A6),
-                    onTap: () {
-                      // Только разблокированный уровень (в режиме
-                      // тестировщика — любой): см. activeConfig().
-                      final config = StorageService.activeConfig();
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => GameScreen(config: config),
-                        ),
-                      ).then((_) => setState(() {}));
-                    },
+                    // Только разблокированный уровень (в режиме тестировщика —
+                    // любой): см. activeConfig().
+                    onTap: () => _open(GameScreen(
+                      config: StorageService.activeConfig(),
+                    )),
                   ),
                   _buildMenuButton(
                     context,
                     icon: Icons.lock_open_rounded,
                     label: 'Сложность и Прогресс',
                     color: const Color(0xFF6366F1),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const UpgradesScreen(),
-                        ),
-                      ).then((_) => setState(() {}));
-                    },
+                    onTap: () => _open(const UpgradesScreen()),
                   ),
                   _buildMenuButton(
                     context,
                     icon: Icons.shopping_bag_rounded,
                     label: 'Магазин',
                     color: const Color(0xFFF59E0B),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const ShopScreen(),
-                        ),
-                      ).then((_) => setState(() {}));
-                    },
+                    onTap: () => _open(const ShopScreen()),
                   ),
                   _buildMenuButton(
                     context,
@@ -1646,28 +1668,14 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
                     icon: Icons.history_rounded,
                     label: 'Журнал игр',
                     color: Colors.blueAccent,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const GameHistoryScreen(),
-                        ),
-                      );
-                    },
+                    onTap: () => _open(const GameHistoryScreen()),
                   ),
                   _buildMenuButton(
                     context,
                     icon: Icons.settings_rounded,
                     label: 'Настройки',
                     color: const Color(0xFF64748B),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const SettingsScreen(),
-                        ),
-                      ).then((_) => setState(() {}));
-                    },
+                    onTap: () => _open(const SettingsScreen()),
                   ),
                   const SizedBox(height: 24),
                   Container(
@@ -1877,6 +1885,9 @@ class UpgradesScreen extends StatefulWidget {
 
 class _UpgradesScreenState extends State<UpgradesScreen> {
   void _tryUnlock(DifficultyConfig config) {
+    // Уровень уже куплен — повторный тап не должен списать монеты второй раз.
+    if (StorageService.unlockedDifficulties.contains(config.level)) return;
+
     int previousWins = StorageService.difficultyWins[config.level - 1] ?? 0;
 
     if (previousWins < config.winsRequiredFromPrevious) {
@@ -1900,13 +1911,10 @@ class _UpgradesScreenState extends State<UpgradesScreen> {
       StorageService.syncWithDisk();
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Уровень сложности ${config.level} успешно разблокирован!',
-        ),
-        backgroundColor: Colors.green,
-      ),
+    showAppSnack(
+      context,
+      'Уровень сложности ${config.level} успешно разблокирован!',
+      background: Colors.green.shade700,
     );
   }
 
@@ -2304,6 +2312,9 @@ class ShopScreen extends StatefulWidget {
 
 class _ShopScreenState extends State<ShopScreen> {
   void _buyTheme(GameTheme theme) {
+    // Тема уже куплена — повторный тап не должен списать монеты второй раз.
+    if (StorageService.unlockedThemes.contains(theme.id)) return;
+
     if (StorageService.userTotalBank < theme.price) {
       showDialog(
         context: context,
@@ -2329,11 +2340,10 @@ class _ShopScreenState extends State<ShopScreen> {
       StorageService.syncWithDisk();
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Вы успешно приобрели тему "${theme.name}"!'),
-        backgroundColor: Colors.green,
-      ),
+    showAppSnack(
+      context,
+      'Вы успешно приобрели тему «${theme.name}»!',
+      background: Colors.green.shade700,
     );
   }
 
@@ -2365,11 +2375,16 @@ class _ShopScreenState extends State<ShopScreen> {
       StorageService.syncWithDisk();
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Покупка успешно совершена!'),
-        backgroundColor: Colors.green,
-      ),
+    // Показываем итоговое количество: при покупке нескольких штук подряд одно
+    // уведомление просто обновляется, вместо очереди одинаковых сообщений.
+    final int count = type == 'shield'
+        ? StorageService.itemShieldCount
+        : StorageService.itemXrayCount;
+    final String item = type == 'shield' ? '🛡️ Щит' : '👁️ Рентген';
+    showAppSnack(
+      context,
+      'Куплено: $item — теперь $count шт.',
+      background: Colors.green.shade700,
     );
   }
 
@@ -2636,6 +2651,9 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  // Сброс прогресса уже выполняется (операция асинхронная).
+  bool _resetting = false;
+
   @override
   Widget build(BuildContext context) {
     final activeTheme = getActiveTheme();
@@ -2777,13 +2795,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     TextButton(
                       onPressed: () async {
+                        // Сброс асинхронный, и всё это время диалог открыт:
+                        // второй тап запустил бы вторую цепочку и сделал ещё
+                        // два Navigator.pop — закрылось бы и главное меню.
+                        if (_resetting) return;
+                        setState(() => _resetting = true);
+
                         final prefs = await SharedPreferences.getInstance();
                         await prefs.clear();
                         await StorageService.loadData();
 
                         if (context.mounted) {
-                          Navigator.pop(context);
-                          Navigator.pop(context);
+                          Navigator.pop(context); // диалог
+                          Navigator.pop(context); // экран настроек
                         }
                       },
                       child: const Text(
@@ -2877,6 +2901,10 @@ class _GameScreenState extends State<GameScreen> {
   // зоны нажатия занимают половину экрана, и случайный второй тап иначе
   // отвечал бы на ещё не прозвучавший ход — почти гарантированный проигрыш.
   bool _inputLocked = false;
+
+  // Выход уже запущен: второй тап по «Забрать монеты» / «Завершить сессию»
+  // иначе выполнит второй Navigator.pop и закроет заодно главное меню.
+  bool _exiting = false;
 
   // План раунда: все вариации пула уровня (баланс 50/50), генерируется при
   // спавне расстановки; ходы идут строго по плану.
@@ -3259,19 +3287,25 @@ class _GameScreenState extends State<GameScreen> {
     _recordSession(true);
   }
 
-  void _completePerfectWithBonus() {
-    _recordSession(true);
+  // Единственный выход из матча по кнопке. Повторный тап игнорируется: второй
+  // Navigator.pop закрыл бы и главное меню.
+  void _exitGame({bool takeBonus = false}) {
+    if (_exiting) return;
+    _exiting = true;
+    if (takeBonus) _recordSession(true);
+    VoiceService.stop();
     Navigator.pop(context);
   }
 
   void _activateXray() {
+    // Рентген уже работает — повторный тап не должен сжигать второй визор
+    // (это 1500 монет за то же самое окно в 3 секунды).
+    if (xrayActive) return;
+
     if (StorageService.itemXrayCount <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'У вас нет Рентген-визоров в инвентаре! Купите в магазине.',
-          ),
-        ),
+      showAppSnack(
+        context,
+        'У вас нет Рентген-визоров! Купите в магазине.',
       );
       return;
     }
@@ -3343,10 +3377,7 @@ class _GameScreenState extends State<GameScreen> {
               ),
               leading: IconButton(
                 icon: const Icon(Icons.arrow_back),
-                onPressed: () {
-                  VoiceService.stop();
-                  Navigator.pop(context);
-                },
+                onPressed: _exitGame,
               ),
               actions: [
                 if (!isMemorizing && !isGameOver && !superGameMode)
@@ -3433,10 +3464,7 @@ class _GameScreenState extends State<GameScreen> {
         Icons.arrow_back,
         color: isDark ? Colors.white54 : Colors.black54,
       ),
-      onPressed: () {
-        VoiceService.stop();
-        Navigator.pop(context);
-      },
+      onPressed: _exitGame,
     );
 
     // Рентген в слепом режиме: единственная кнопка, возвращающая поле на
@@ -3825,6 +3853,9 @@ class _GameScreenState extends State<GameScreen> {
                 backgroundColor: activeTheme.primaryColor,
               ),
               onPressed: () {
+                // Второй тап (пока кадр не перерисовался) запустил бы вторую
+                // фазу запоминания и второй ход поверх первого.
+                if (!isGameOver) return;
                 setState(() {
                   isGameOver = false;
                   currentRound = 1;
@@ -3889,7 +3920,7 @@ class _GameScreenState extends State<GameScreen> {
               ),
               const SizedBox(height: 12),
               ElevatedButton(
-                onPressed: () => Navigator.pop(context),
+                onPressed: _exitGame,
                 child: const Text('Завершить сессию'),
               ),
             ] else if (superGameSuccess) ...[
@@ -3902,7 +3933,7 @@ class _GameScreenState extends State<GameScreen> {
               ),
               const SizedBox(height: 12),
               ElevatedButton(
-                onPressed: _completePerfectWithBonus,
+                onPressed: () => _exitGame(takeBonus: true),
                 child: const Text('Забрать монеты и выйти'),
               ),
             ] else ...[

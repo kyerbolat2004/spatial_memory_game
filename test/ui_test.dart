@@ -305,6 +305,48 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
   });
 
+  testWidgets('Быстрые покупки: на экране только одно уведомление', (tester) async {
+    await pumpApp(tester);
+    await openFromMenu(tester, 'Магазин');
+
+    final shield = find.widgetWithText(ElevatedButton, '1000 $coin');
+    // Пять покупок подряд — раньше это давало очередь из пяти снеков по 4 сек.
+    for (int i = 0; i < 5; i++) {
+      await tester.tap(shield.first);
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    expect(find.byType(SnackBar), findsOneWidget,
+        reason: 'уведомление должно быть одно, а не очередь');
+
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('Рентген: повторный тап не сжигает второй визор', (tester) async {
+    StorageService.isBlindModeGlobal = false; // рентген в шапке
+    StorageService.devModeActive = false;
+    StorageService.itemXrayCount = 2;
+    await pumpApp(tester);
+    await openFromMenu(tester, 'Старт сессии');
+    for (int i = 0; i < 6; i++) {
+      await tester.pump(const Duration(seconds: 1));
+    }
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final xray = find.textContaining('Рентген');
+    await tester.tap(xray.first);
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(StorageService.itemXrayCount, 1);
+
+    // Второй тап, пока рентген ещё активен — визор тратиться не должен.
+    await tester.tap(find.textContaining('Рентген').first);
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(StorageService.itemXrayCount, 1,
+        reason: 'повторный тап при активном рентгене не должен списывать визор');
+
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
   testWidgets('Слепой режим: Рентген возвращает поле на 3 секунды', (tester) async {
     StorageService.isBlindModeGlobal = true;
     StorageService.devModeActive = false; // иначе поле видно и без рентгена
