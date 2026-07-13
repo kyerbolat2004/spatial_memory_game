@@ -31,15 +31,34 @@ String para(String text, {bool bold = false, int halfPoints = 0}) {
 String heading(String text) => para(text, bold: true, halfPoints: 28);
 
 String table(List<List<String>> rows) {
-  final b = StringBuffer('<w:tbl><w:tblPr><w:tblBorders>');
+  final int cols = rows.map((r) => r.length).reduce(max);
+  final int colWidth = (9360 / cols).floor(); // полоса набора A4 в твипах
+
+  final b = StringBuffer('<w:tbl><w:tblPr>');
+  b.write('<w:tblW w:w="0" w:type="auto"/>');
+  b.write('<w:tblBorders>');
   for (final side in ['top', 'left', 'bottom', 'right', 'insideH', 'insideV']) {
     b.write('<w:$side w:val="single" w:sz="4" w:space="0" w:color="808080"/>');
   }
-  b.write('</w:tblBorders></w:tblPr>');
+  b.write('</w:tblBorders>');
+  b.write('<w:tblLayout w:type="autofit"/>');
+  b.write('</w:tblPr>');
+
+  // tblGrid обязателен по схеме OOXML (CT_Tbl): без него Word отказывается
+  // открывать документ («обнаружено содержимое, которое не удалось прочитать»).
+  b.write('<w:tblGrid>');
+  for (int i = 0; i < cols; i++) {
+    b.write('<w:gridCol w:w="$colWidth"/>');
+  }
+  b.write('</w:tblGrid>');
+
   for (final row in rows) {
     b.write('<w:tr>');
     for (final cell in row) {
-      b.write('<w:tc><w:tcPr></w:tcPr>${para(cell)}</w:tc>');
+      b.write(
+        '<w:tc><w:tcPr><w:tcW w:w="$colWidth" w:type="dxa"/></w:tcPr>'
+        '${para(cell)}</w:tc>',
+      );
     }
     b.write('</w:tr>');
   }
@@ -48,6 +67,22 @@ String table(List<List<String>> rows) {
   b.write('<w:p/>');
   return b.toString();
 }
+
+// Согласование существительного с числительным: 1 ход, 2 хода, 5 ходов.
+String plural(int n, String one, String few, String many) {
+  final int n100 = n % 100;
+  final int n10 = n % 10;
+  if (n100 >= 11 && n100 <= 14) return many;
+  if (n10 == 1) return one;
+  if (n10 >= 2 && n10 <= 4) return few;
+  return many;
+}
+
+String cellsWord(int n) => '$n ${plural(n, 'клетка', 'клетки', 'клеток')}';
+String movesWord(int n) => '$n ${plural(n, 'ход', 'хода', 'ходов')}';
+String variantsWord(int n) =>
+    '$n ${plural(n, 'вариация', 'вариации', 'вариаций')}';
+String deadEndsWord(int n) => '$n ${plural(n, 'тупик', 'тупика', 'тупиков')}';
 
 const contentTypesXml = '<?xml version="1.0" encoding="UTF-8" '
     'standalone="yes"?>\n'
@@ -241,7 +276,7 @@ void main() {
           bold: true, halfPoints: 36));
 
       body.write(heading('1. Поле и правила'));
-      body.write(para('Поле: $grid×$grid = $cells клеток. '
+      body.write(para('Поле: $grid×$grid = ${cellsWord(cells)}. '
           '${twoObjects ? 'На поле два объекта (① и ②); каждый ход объявляется для одного из них.' : 'Объект стоит на одной клетке.'}'));
       if (hasObstacles) {
         body.write(para(
@@ -328,7 +363,7 @@ void main() {
       typeRows.add(['Итого', '${pool.length}', '—', '$stepsTotal']);
       body.write(table(typeRows));
 
-      body.write(heading('4. Все ${pool.length} вариаций ходов'));
+      body.write(heading('4. Все ${variantsWord(pool.length)} ходов'));
       body.write(table([
         for (final e in groups.entries)
           ['${e.key} (${e.value.length})', e.value.join(' · ')],
@@ -338,8 +373,10 @@ void main() {
           'разные вариации.'));
 
       body.write(heading('5. Пул комбинаций «клетка + ход»'));
-      body.write(para('$cells клеток × ${pool.length} ходов = '
-          '${thousands(cells * pool.length)} вариаций.'));
+      final int poolCombos = cells * pool.length;
+      body.write(para('${cellsWord(cells)} × ${movesWord(pool.length)} = '
+          '${thousands(poolCombos)} '
+          '${plural(poolCombos, 'вариация', 'вариации', 'вариаций')}.'));
       body.write(para('Валидных (ДАЛЬШЕ) на чистом поле — учтён только край: '
           '${thousands(validTotal)}.'));
       body.write(para('Тупиковых (СТОП) от края поля: '
@@ -365,19 +402,29 @@ void main() {
         for (int r = 0; r < grid; r++)
           ['Строка ${r + 1}', for (int c = 0; c < grid; c++) '${perCell[r][c]}'],
       ]));
-      body.write(para('Минимум — в углах ($minPerCell ходов, '
-          '${pool.length - minPerCell} тупиков), максимум — в центре поля '
-          '($maxPerCell ходов, ${pool.length - maxPerCell} тупиков).'));
+      if (minPerCell == maxPerCell) {
+        // Уровни с одним типом ходов (прямые на 2 клетки): поле однородно.
+        body.write(para('Из любой клетки доступно ровно '
+            '${movesWord(minPerCell)} из ${pool.length} — доля ДАЛЬШЕ '
+            'одинакова по всему полю.'));
+      } else {
+        body.write(para('Минимум — в углах (${movesWord(minPerCell)}, '
+            '${deadEndsWord(pool.length - minPerCell)}), максимум — в центре '
+            'поля (${movesWord(maxPerCell)}, '
+            '${deadEndsWord(pool.length - maxPerCell)}).'));
+      }
 
       body.write(heading('7. Раунд'));
       if (sampled) {
-        body.write(para('Раунд = $target ходов — случайная выборка $target '
-            'разных вариаций из пула (${pool.length} вариаций), каждая не '
-            'больше одного раза за раунд. Старт — случайная расстановка.'));
+        body.write(para('Раунд = ${movesWord(target)} — случайная выборка '
+            '$target разных вариаций из пула (${pool.length} вариаций), '
+            'каждая не больше одного раза за раунд. Старт — случайная '
+            'расстановка.'));
       } else {
-        body.write(para('Раунд = $target ходов: пул из ${pool.length} '
+        body.write(para('Раунд = ${movesWord(target)}: пул из ${pool.length} '
             'вариаций проходится $reps раза — каждая вариация встречается '
-            'ровно $reps раза. Старт — случайная расстановка.'));
+            'ровно ${plural(reps, '$reps раз', '$reps раза', '$reps раз')}. '
+            'Старт — случайная расстановка.'));
       }
       body.write(para('Старт: случайные клетки '
           '${twoObjects ? 'объектов ① и ②' : 'объекта'}'
@@ -456,9 +503,10 @@ void main() {
           ? 'Каждая вариация встречается не больше одного раза. Старт и '
               'преграды фиксированы для раунда. Баланс каждого раунда: '
               '$half ДАЛЬШЕ / $half СТОП.'
-          : 'Каждая вариация встречается ровно $reps раза. Старт и преграды '
-              'фиксированы для раунда. Баланс каждого раунда: $half ДАЛЬШЕ / '
-              '$half СТОП.'));
+          : 'Каждая вариация встречается ровно '
+              '${plural(reps, '$reps раз', '$reps раза', '$reps раз')}. Старт '
+              'и преграды фиксированы для раунда. Баланс каждого раунда: '
+              '$half ДАЛЬШЕ / $half СТОП.'));
 
       // --- Запись файлов docx-структуры ---
       final name = 'Уровень ${config.level} (сетка $grid×$grid)';
